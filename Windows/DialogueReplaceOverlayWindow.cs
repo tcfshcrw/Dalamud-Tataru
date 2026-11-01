@@ -30,6 +30,12 @@ public class DialogueReplaceOverlayWindow : Window
         Size = size;
         PositionCondition = ImGuiCond.Always;
         SizeCondition = ImGuiCond.Always;
+
+        config.ReplaceOverlayPosition = pos;
+        config.ReplaceOverlaySize = size;
+        config.ReplacePositionOffset = Vector2.Zero;
+        config.ReplaceSizeOffset = Vector2.Zero;
+        config.Save();
     }
 
     public DialogueReplaceOverlayWindow(Configuration config, DialogueWatcher dialogueWatcher, IFontHandle? fontHandle = null)

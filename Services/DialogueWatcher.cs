@@ -113,23 +113,30 @@ public unsafe class DialogueWatcher : IDisposable
                             if (config.ReplaceGameTalkAddon)
                             {
                                 float scale = talkAddon->AtkUnitBase.Scale > 0 ? talkAddon->AtkUnitBase.Scale : 1.0f;
-                                float width = 600f;
-                                float height = 140f;
+                                float width = 620f * scale;
+                                float height = 150f * scale;
 
-                                if (talkAddon->AtkUnitBase.WindowNode != null && talkAddon->AtkUnitBase.WindowNode->Width > 0)
+                                // 優先抓取對話文字節點 AtkTextNode228（最精確的泡泡內文邊界，避免抓到 1920 滿版容器）
+                                if (talkAddon->AtkTextNode228 != null && talkAddon->AtkTextNode228->AtkResNode.Width > 100 && talkAddon->AtkTextNode228->AtkResNode.Width < 1200)
+                                {
+                                    width = (talkAddon->AtkTextNode228->AtkResNode.Width + 60f) * scale;
+                                    height = Math.Max(140f * scale, (talkAddon->AtkTextNode228->AtkResNode.Height + 50f) * scale);
+                                }
+                                else if (talkAddon->AtkTextNode228 != null && talkAddon->AtkTextNode228->AtkResNode.ParentNode != null &&
+                                         talkAddon->AtkTextNode228->AtkResNode.ParentNode->Width > 200 && talkAddon->AtkTextNode228->AtkResNode.ParentNode->Width < 1200)
+                                {
+                                    width = talkAddon->AtkTextNode228->AtkResNode.ParentNode->Width * scale;
+                                    height = Math.Max(140f * scale, talkAddon->AtkTextNode228->AtkResNode.ParentNode->Height * scale);
+                                }
+                                else if (talkAddon->AtkUnitBase.WindowNode != null && talkAddon->AtkUnitBase.WindowNode->Width > 200 && talkAddon->AtkUnitBase.WindowNode->Width < 1200)
                                 {
                                     width = talkAddon->AtkUnitBase.WindowNode->Width * scale;
                                     height = talkAddon->AtkUnitBase.WindowNode->Height * scale;
                                 }
-                                else if (talkAddon->AtkUnitBase.RootNode != null && talkAddon->AtkUnitBase.RootNode->Width > 0 && talkAddon->AtkUnitBase.RootNode->Width < 1800)
+                                else if (talkAddon->AtkUnitBase.RootNode != null && talkAddon->AtkUnitBase.RootNode->Width > 200 && talkAddon->AtkUnitBase.RootNode->Width < 1200)
                                 {
                                     width = talkAddon->AtkUnitBase.RootNode->Width * scale;
                                     height = talkAddon->AtkUnitBase.RootNode->Height * scale;
-                                }
-                                else if (talkAddon->AtkTextNode228 != null && talkAddon->AtkTextNode228->AtkResNode.Width > 0)
-                                {
-                                    width = (talkAddon->AtkTextNode228->AtkResNode.Width + 60) * scale;
-                                    height = (talkAddon->AtkTextNode228->AtkResNode.Height + 50) * scale;
                                 }
 
                                 TalkAddonPosition = new Vector2(talkAddon->AtkUnitBase.X, talkAddon->AtkUnitBase.Y);
