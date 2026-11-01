@@ -22,6 +22,14 @@ public class DialogueReplaceOverlayWindow : Window
         needsReset = true;
     }
 
+    public void ApplyTalkAddonBounds(Vector2 pos, Vector2 size)
+    {
+        Position = pos;
+        Size = size;
+        PositionCondition = ImGuiCond.Always;
+        SizeCondition = ImGuiCond.Always;
+    }
+
     public DialogueReplaceOverlayWindow(Configuration config, DialogueWatcher dialogueWatcher)
         : base("Tataru 原生對話覆蓋視窗 (開啟設定時可拖曳調整)###TataruReplaceOverlay",
             ImGuiWindowFlags.NoScrollbar |
@@ -115,7 +123,16 @@ public class DialogueReplaceOverlayWindow : Window
             {
                 PositionCondition = ImGuiCond.FirstUseEver;
             }
-            SizeCondition = ImGuiCond.FirstUseEver;
+
+            if (config.ReplaceAutoSyncSize && dialogueWatcher.TalkAddonSize.HasValue)
+            {
+                Size = dialogueWatcher.TalkAddonSize.Value + config.ReplaceSizeOffset;
+                SizeCondition = ImGuiCond.Always;
+            }
+            else
+            {
+                SizeCondition = ImGuiCond.FirstUseEver;
+            }
 
             // 對話框關閉即立刻關閉視窗
             if (!isDialogueActive)
@@ -151,16 +168,10 @@ public class DialogueReplaceOverlayWindow : Window
 
         var textColor = useDarkText ? new Vector4(0.10f, 0.08f, 0.06f, 1.0f) : config.TextColor;
         var origTextColor = useDarkText ? new Vector4(0.42f, 0.38f, 0.34f, 1.0f) : config.OriginalTextColor;
-        var speakerColor = useDarkText ? new Vector4(0.18f, 0.14f, 0.10f, 1.0f) : config.SpeakerColor;
 
         // When config is open and there is no active in-game dialogue, show an interactive preview
         if (IsConfigOpen && (!isDialogueActive || currentEntry == null))
         {
-            if (config.ShowSpeaker)
-            {
-                ImGui.TextColored(speakerColor, "【タタル (塔塔露)】");
-            }
-
             string modeDesc = config.ReplaceUseNativeBubble 
                 ? "【原生泡泡底圖模式 (方案 B)】預覽中！\n遊戲原版米白泡泡框與金箭頭將完整保留，僅替換內文字體。"
                 : config.ReplaceUseParchmentTheme 
@@ -190,27 +201,7 @@ public class DialogueReplaceOverlayWindow : Window
             return;
         }
 
-        // 1. Speaker
-        if (config.ShowSpeaker)
-        {
-            var speaker = !string.IsNullOrEmpty(currentEntry.TranslatedSpeaker)
-                ? currentEntry.TranslatedSpeaker
-                : currentEntry.Speaker;
-
-            if (!string.IsNullOrEmpty(speaker))
-            {
-                if (!string.IsNullOrEmpty(currentEntry.Speaker) && currentEntry.Speaker != speaker)
-                {
-                    ImGui.TextColored(speakerColor, $"【{speaker} ({currentEntry.Speaker})】");
-                }
-                else
-                {
-                    ImGui.TextColored(speakerColor, $"【{speaker}】");
-                }
-            }
-        }
-
-        // 2. Translated Text
+        // 1. Translated Text
         if (currentEntry.IsTranslating)
         {
             ImGui.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1.0f), "翻譯中...");
@@ -220,7 +211,7 @@ public class DialogueReplaceOverlayWindow : Window
             ImGui.TextColored(textColor, currentEntry.TranslatedText);
         }
 
-        // 3. Original Japanese Text
+        // 2. Original Japanese Text
         if (!string.IsNullOrEmpty(currentEntry.OriginalText))
         {
             ImGui.Spacing();

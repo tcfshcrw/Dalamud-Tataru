@@ -18,6 +18,7 @@ public class ConfigWindow : Window
     private readonly GoogleTranslator google;
     private readonly SubtitleOverlayWindow overlayWindow;
     private readonly DialogueReplaceOverlayWindow replaceOverlayWindow;
+    private readonly DialogueWatcher dialogueWatcher;
     private readonly GlossaryManager glossary;
 
     private bool showApiKey = false;
@@ -40,7 +41,7 @@ public class ConfigWindow : Window
         "自訂模型 (Custom)"
     };
 
-    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, DialogueReplaceOverlayWindow replaceOverlayWindow, GlossaryManager glossary)
+    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, DialogueReplaceOverlayWindow replaceOverlayWindow, DialogueWatcher dialogueWatcher, GlossaryManager glossary)
         : base("Tataru Native Translator 設定###TataruConfigWindow")
     {
         this.config = config;
@@ -50,6 +51,7 @@ public class ConfigWindow : Window
         this.google = google;
         this.overlayWindow = overlayWindow;
         this.replaceOverlayWindow = replaceOverlayWindow;
+        this.dialogueWatcher = dialogueWatcher;
         this.glossary = glossary;
 
         Size = new Vector2(560, 620);
@@ -371,6 +373,14 @@ public class ConfigWindow : Window
             config.Save();
         }
 
+        var showStartup = config.ShowStartupNotification;
+        if (ImGui.Checkbox("每次啟動時提示現在版本 引擎模型 與自動更新訊息 顯示同一行內", ref showStartup))
+        {
+            config.ShowStartupNotification = showStartup;
+            config.Save();
+        }
+        ImGui.TextDisabled("啟用後，插件啟動時會在遊戲聊天室單行輸出版本號、目前翻譯引擎與模型、以及文本庫更新訊息。");
+
         if (ImGui.Button(isUpdatingGlossary ? "文本更新中..." : "立即從 Tataru-Assistant 雲端更新文本庫", new Vector2(-1, 32)) && !isUpdatingGlossary)
         {
             UpdateGlossaryFromCloud();
@@ -422,11 +432,12 @@ public class ConfigWindow : Window
         ImGui.Spacing();
 
         var showSpeaker = config.ShowSpeaker;
-        if (ImGui.Checkbox("顯示說話者名稱", ref showSpeaker))
+        if (ImGui.Checkbox("顯示說話者名稱 (僅獨立字幕模式生效)", ref showSpeaker))
         {
             config.ShowSpeaker = showSpeaker;
             config.Save();
         }
+        ImGui.TextDisabled("在獨立字幕框模式下顯示說話者名稱。啟用「原生對話框覆蓋模式」時將自動忽略（不重複顯示說話者，由遊戲原版姓名條呈現）。");
 
         var showOriginal = config.ShowOriginalText;
         if (ImGui.Checkbox("顯示日文原文對照", ref showOriginal))
@@ -525,6 +536,36 @@ public class ConfigWindow : Window
             }
 
             ImGui.Spacing();
+            var autoSyncSize = config.ReplaceAutoSyncSize;
+            if (ImGui.Checkbox("對話時視窗大小自動同步遊戲對話框 (Auto-sync Size)", ref autoSyncSize))
+            {
+                config.ReplaceAutoSyncSize = autoSyncSize;
+                config.Save();
+            }
+            ImGui.TextDisabled("若開啟，對話時覆蓋視窗的尺寸會 100% 自動抓取並貼合遊戲原生對話框的實際大小（包含 HUD 縮放倍率）；若關閉，則允許您自由拉動邊框調整尺寸。");
+
+            if (config.ReplaceAutoSyncSize)
+            {
+                var sizeOffset = config.ReplaceSizeOffset;
+                if (ImGui.DragFloat2("同步尺寸微調偏移 (寬, 高 像素)", ref sizeOffset, 1.0f, -400f, 400f, "%.0f px"))
+                {
+                    config.ReplaceSizeOffset = sizeOffset;
+                    config.Save();
+                }
+                ImGui.TextDisabled("在自動同步大小的基礎上進行寬度與高度微調。");
+            }
+
+            if (dialogueWatcher.TalkAddonPosition.HasValue && dialogueWatcher.TalkAddonSize.HasValue)
+            {
+                ImGui.Spacing();
+                if (ImGui.Button("一鍵抓取並套用當前遊戲對話框座標與尺寸"))
+                {
+                    replaceOverlayWindow.ApplyTalkAddonBounds(dialogueWatcher.TalkAddonPosition.Value, dialogueWatcher.TalkAddonSize.Value);
+                }
+                ImGui.TextDisabled($"當前偵測到遊戲對話框座標: ({dialogueWatcher.TalkAddonPosition.Value.X:F0}, {dialogueWatcher.TalkAddonPosition.Value.Y:F0})，大小: ({dialogueWatcher.TalkAddonSize.Value.X:F0} x {dialogueWatcher.TalkAddonSize.Value.Y:F0})");
+            }
+
+            ImGui.Spacing();
             ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), "💡 覆蓋視窗尺寸與位置調整方式：");
             ImGui.TextDisabled("此設定視窗開啟時，畫面上的【Tataru 原生對話覆蓋視窗】會常駐顯示。\n您可以直接用滑鼠拖動它至 NPC 對話框位置，並拉伸邊框至所需大小，遊戲會自動永久記憶！");
 
@@ -594,10 +635,19 @@ public class ConfigWindow : Window
     {
         ImGui.Spacing();
         ImGui.TextColored(new Vector4(1.0f, 0.85f, 0.35f, 1.0f), "Tataru Native Translator (Dalamud-Tataru)");
-        ImGui.TextDisabled("Version 1.0.0");
+        var version = GetType().Assembly.GetName().Version;
+        ImGui.TextDisabled(version != null ? $"Version {version}" : "Version 1.0.0");
         ImGui.Spacing();
         ImGui.TextWrapped("專為 Final Fantasy XIV 玩家打造的原生遊戲內即時劇情翻譯插件。");
-        ImGui.TextWrapped("整合 Tataru Assistant 專有名詞辭典與 Google Gemini AI，無須開啟外部 exe 程式，享受原汁原味的沉浸式劇情體驗。");
+        ImGui.Spacing();
+
+        var showStartup = config.ShowStartupNotification;
+        if (ImGui.Checkbox("每次啟動時提示現在版本 引擎模型 與自動更新訊息 顯示同一行內##about", ref showStartup))
+        {
+            config.ShowStartupNotification = showStartup;
+            config.Save();
+        }
+
         ImGui.Spacing();
         ImGui.Separator();
         ImGui.Spacing();
@@ -609,6 +659,11 @@ public class ConfigWindow : Window
         ImGui.BulletText("/tataru gemini [on|off] - 開關或切換至 Gemini AI");
         ImGui.BulletText("/tataru clearcache - 清除所有翻譯暫存快取");
         ImGui.BulletText("/tataru update - 從 Tataru-Assistant 雲端立即更新最新文本庫");
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+        ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "特別鳴謝 (Special Thanks)：");
+        ImGui.TextWrapped("特別感謝 Tataru Assistant (winw1010/tataru-assistant) 及其社群貢獻者所建立維護的龐大 FFXIV 專有名詞辭典與開源生態支援！");
     }
 
     private void UpdateGlossaryFromCloud()
@@ -622,12 +677,12 @@ public class ConfigWindow : Window
             {
                 var (success, hasUpdated, msg) = await glossary.UpdateGlossariesFromTataruAsync(forceReload: true);
                 glossaryStatus = success ? $"✔ {msg}" : $"❌ 更新失敗：{msg}";
-                Plugin.ChatGui.Print($"[Tataru] {msg}");
+                Plugin.ChatGui.Print($"[Tataru] Glossary: {(success ? (hasUpdated ? "Updated to latest version." : "Already up to date.") : $"Update failed: {msg}")}");
             }
             catch (Exception ex)
             {
                 glossaryStatus = $"❌ 更新失敗：{ex.Message}";
-                Plugin.ChatGui.Print($"[Tataru] 文本庫更新失敗：{ex.Message}");
+                Plugin.ChatGui.Print($"[Tataru] Glossary update error: {ex.Message}");
             }
             finally
             {

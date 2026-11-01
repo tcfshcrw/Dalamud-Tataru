@@ -53,41 +53,53 @@ public class Plugin : IDalamudPlugin
 
         overlayWindow = new SubtitleOverlayWindow(Configuration);
         replaceOverlayWindow = new DialogueReplaceOverlayWindow(Configuration, dialogueWatcher);
-        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, replaceOverlayWindow, glossaryManager);
+        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, replaceOverlayWindow, dialogueWatcher, glossaryManager);
 
         WindowSystem.AddWindow(overlayWindow);
         WindowSystem.AddWindow(replaceOverlayWindow);
         WindowSystem.AddWindow(configWindow);
 
+        var version = GetType().Assembly.GetName().Version;
+        string versionStr = version != null ? $"v{version}" : "v1.0.0";
+        string engineStr = GetEngineDisplayName(Configuration.PrimaryEngine);
+
         if (Configuration.AutoUpdateGlossary)
         {
             Task.Run(async () =>
             {
+                string updateMsg;
                 try
                 {
                     var (success, hasUpdated, msg) = await glossaryManager.UpdateGlossariesFromTataruAsync();
                     if (success)
                     {
                         PluginLog.Information(msg);
-                        if (hasUpdated)
-                        {
-                            ChatGui.Print($"[Tataru] 檢測到新文本庫並已自動更新！{msg}");
-                        }
-                        else
-                        {
-                            ChatGui.Print($"[Tataru] {msg}");
-                        }
+                        updateMsg = hasUpdated ? "Updated to latest" : "Up to date";
                     }
                     else
                     {
                         PluginLog.Warning($"Tataru 文本庫檢查失敗：{msg}");
+                        updateMsg = "Update check failed";
                     }
                 }
                 catch (Exception ex)
                 {
                     PluginLog.Warning(ex, "啟動時自動更新 Tataru 文本庫失敗。");
+                    updateMsg = "Connection error";
+                }
+
+                if (Configuration.ShowStartupNotification)
+                {
+                    ChatGui.Print($"[Tataru] {versionStr} loaded | Engine: {engineStr} | Glossary: {updateMsg}");
                 }
             });
+        }
+        else
+        {
+            if (Configuration.ShowStartupNotification)
+            {
+                ChatGui.Print($"[Tataru] {versionStr} loaded | Engine: {engineStr} | Glossary: Auto-update disabled");
+            }
         }
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
@@ -218,35 +230,35 @@ public class Plugin : IDalamudPlugin
                 if (Configuration.PrimaryEngine == TranslationEngine.LmStudio)
                 {
                     var fallback = string.IsNullOrWhiteSpace(Configuration.GeminiApiKey) ? TranslationEngine.Youdao : TranslationEngine.Gemini;
-                    var fallbackName = fallback == TranslationEngine.Gemini ? "Gemini" : "有道 (Youdao)";
+                    var fallbackName = fallback == TranslationEngine.Gemini ? "Gemini" : "Youdao";
                     SwitchEngine(fallback, fallbackName);
                 }
                 else
                 {
-                    SwitchEngine(TranslationEngine.LmStudio, "LM Studio (本地模型)");
+                    SwitchEngine(TranslationEngine.LmStudio, "LM Studio");
                 }
                 break;
 
             case "youdao":
-                SwitchEngine(TranslationEngine.Youdao, "有道 (Youdao)");
+                SwitchEngine(TranslationEngine.Youdao, "Youdao");
                 break;
 
             case "google":
-                SwitchEngine(TranslationEngine.Google, "Google 翻譯");
+                SwitchEngine(TranslationEngine.Google, "Google Translate");
                 break;
 
             case "update" or "glossary":
-                ChatGui.Print("[Tataru] 正在從 Tataru-Assistant 雲端檢查文本庫更新...");
+                ChatGui.Print("[Tataru] Checking glossary update from Tataru-Assistant...");
                 Task.Run(async () =>
                 {
                     var (success, hasUpdated, msg) = await glossaryManager.UpdateGlossariesFromTataruAsync(forceReload: true);
-                    ChatGui.Print($"[Tataru] {msg}");
+                    ChatGui.Print($"[Tataru] Glossary: {(success ? (hasUpdated ? "Updated to latest version." : "Already up to date.") : $"Update failed: {msg}")}");
                 });
                 break;
 
             case "clearcache" or "clear":
                 var clearedCount = translator.ClearCache();
-                ChatGui.Print($"[Tataru] 已成功清除 {clearedCount} 筆翻譯暫存快取。");
+                ChatGui.Print($"[Tataru] Cleared {clearedCount} translation cache entries.");
                 break;
 
             case "replace":
@@ -267,18 +279,18 @@ public class Plugin : IDalamudPlugin
                     replaceOverlayWindow.IsOpen = Configuration.ReplaceGameTalkAddon;
                     replaceOverlayWindow.IsConfigOpen = Configuration.ReplaceGameTalkAddon;
                 }
-                ChatGui.Print($"[Tataru] 原生對話框覆蓋模式已切換為：{(Configuration.ReplaceGameTalkAddon ? "開啟 (隱藏原生泡泡並雙語顯示)" : "關閉 (已切回獨立翻譯框位置)")}");
+                ChatGui.Print($"[Tataru] Dialogue replace overlay: {(Configuration.ReplaceGameTalkAddon ? "Enabled" : "Disabled")}");
                 break;
 
             case "help":
-                ChatGui.Print("[Tataru] 指令說明：");
-                ChatGui.Print("  /tataru - 開啟或關閉設定視窗");
-                ChatGui.Print("  /tataru toggle - 開啟或關閉字幕懸浮窗");
-                ChatGui.Print("  /tataru replace [on|off] - 開關原生對話框覆蓋模式（隱藏原版泡泡並雙語顯示）");
-                ChatGui.Print("  /tataru LMS [on|off] - 開關或切換主引擎為 LM Studio 本地模型");
-                ChatGui.Print("  /tataru gemini [on|off] - 開關或切換主引擎為 Gemini");
-                ChatGui.Print("  /tataru clearcache - 清除所有翻譯暫存快取");
-                ChatGui.Print("  /tataru update - 從 Tataru-Assistant 雲端更新最新文本與專有名詞庫");
+                ChatGui.Print("[Tataru] Commands:");
+                ChatGui.Print("  /tataru - Toggle config window");
+                ChatGui.Print("  /tataru toggle - Toggle subtitle overlay window");
+                ChatGui.Print("  /tataru replace [on|off] - Toggle native dialogue replace overlay mode");
+                ChatGui.Print("  /tataru LMS [on|off] - Toggle or switch primary engine to LM Studio");
+                ChatGui.Print("  /tataru gemini [on|off] - Toggle or switch primary engine to Gemini");
+                ChatGui.Print("  /tataru clearcache - Clear translation cache");
+                ChatGui.Print("  /tataru update - Check and update glossary from Tataru-Assistant");
                 break;
 
             default:
@@ -287,12 +299,24 @@ public class Plugin : IDalamudPlugin
         }
     }
 
+    private string GetEngineDisplayName(TranslationEngine engine)
+    {
+        return engine switch
+        {
+            TranslationEngine.Gemini => $"Google Gemini (Model: {Configuration.GeminiModel})",
+            TranslationEngine.LmStudio => $"LM Studio (Model: {(!string.IsNullOrEmpty(Configuration.LmStudioModel) ? Configuration.LmStudioModel : "Default")})",
+            TranslationEngine.Youdao => "Youdao",
+            TranslationEngine.Google => "Google Translate",
+            _ => engine.ToString()
+        };
+    }
+
     private void SwitchEngine(TranslationEngine engine, string engineName)
     {
         Configuration.PrimaryEngine = engine;
         Configuration.Save();
         translator.ClearCache();
-        ChatGui.Print($"[Tataru] 主翻譯引擎已切換為：{engineName}");
+        ChatGui.Print($"[Tataru] Primary translation engine switched to: {GetEngineDisplayName(engine)}");
     }
 
     private void DrawUI()

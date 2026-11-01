@@ -107,8 +107,25 @@ public unsafe class DialogueWatcher : IDisposable
                         if (config.ReplaceGameTalkAddon)
                         {
                             float scale = talkAddon->AtkUnitBase.Scale > 0 ? talkAddon->AtkUnitBase.Scale : 1.0f;
-                            float width = talkAddon->AtkUnitBase.RootNode != null ? talkAddon->AtkUnitBase.RootNode->Width * scale : 600f;
-                            float height = talkAddon->AtkUnitBase.RootNode != null ? talkAddon->AtkUnitBase.RootNode->Height * scale : 140f;
+                            float width = 600f;
+                            float height = 140f;
+
+                            if (talkAddon->AtkUnitBase.WindowNode != null && talkAddon->AtkUnitBase.WindowNode->Width > 0)
+                            {
+                                width = talkAddon->AtkUnitBase.WindowNode->Width * scale;
+                                height = talkAddon->AtkUnitBase.WindowNode->Height * scale;
+                            }
+                            else if (talkAddon->AtkUnitBase.RootNode != null && talkAddon->AtkUnitBase.RootNode->Width > 0 && talkAddon->AtkUnitBase.RootNode->Width < 1800)
+                            {
+                                width = talkAddon->AtkUnitBase.RootNode->Width * scale;
+                                height = talkAddon->AtkUnitBase.RootNode->Height * scale;
+                            }
+                            else if (talkAddon->AtkTextNode228 != null && talkAddon->AtkTextNode228->AtkResNode.Width > 0)
+                            {
+                                width = (talkAddon->AtkTextNode228->AtkResNode.Width + 60) * scale;
+                                height = (talkAddon->AtkTextNode228->AtkResNode.Height + 50) * scale;
+                            }
+
                             TalkAddonPosition = new Vector2(talkAddon->AtkUnitBase.X, talkAddon->AtkUnitBase.Y);
                             TalkAddonSize = new Vector2(width, height);
                         }

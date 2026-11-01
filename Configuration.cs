@@ -33,6 +33,7 @@ public class Configuration : IPluginConfiguration
 
     // Glossary
     public bool AutoUpdateGlossary { get; set; } = true;
+    public bool ShowStartupNotification { get; set; } = true;
 
     // Hook Toggles
     public bool TranslateTalk { get; set; } = true;
@@ -44,6 +45,7 @@ public class Configuration : IPluginConfiguration
     public float ReplaceFontScale { get; set; } = 1.0f;
     public bool ReplaceUseNativeBubble { get; set; } = false;
     public bool ReplaceUseParchmentTheme { get; set; } = true;
+    public bool ReplaceAutoSyncSize { get; set; } = false;
     public Vector2 ReplaceOverlayPosition { get; set; } = new Vector2(400, 750);
     public Vector2 ReplaceOverlaySize { get; set; } = new Vector2(650, 180);
     public bool ReplaceFollowTalkAddonPosition { get; set; } = true;
