@@ -158,25 +158,25 @@ public unsafe class DialogueWatcher : IDisposable
             }
         }
 
-        // 2. Check Cutscene Subtitle
+        // 2. Check Cutscene / Movie Subtitle
         if (!currentVisible && config.TranslateSubtitle)
         {
-            var subPtr = gameGui.GetAddonByName("TalkSubtitle");
-            if (subPtr.IsNull)
+            string[] subtitleAddons = new[] { "TalkSubtitle", "_Subtitle", "MovieSubtitle", "_MovieSubtitle" };
+            foreach (var addonName in subtitleAddons)
             {
-                subPtr = gameGui.GetAddonByName("_Subtitle");
-            }
-
-            if (!subPtr.IsNull)
-            {
-                var subAddon = (AtkUnitBase*)subPtr.Address;
-                if (subAddon != null && subAddon->IsVisible)
+                var subPtr = gameGui.GetAddonByName(addonName);
+                if (!subPtr.IsNull)
                 {
-                    var text = ExtractFirstTextNode(subAddon);
-                    if (!string.IsNullOrWhiteSpace(text))
+                    var subAddon = (AtkUnitBase*)subPtr.Address;
+                    if (subAddon != null && subAddon->IsVisible)
                     {
-                        currentVisible = true;
-                        CheckAndEmit(DialogueType.Subtitle, string.Empty, text);
+                        var text = ExtractFirstTextNode(subAddon);
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            currentVisible = true;
+                            CheckAndEmit(DialogueType.Subtitle, string.Empty, text);
+                            break;
+                        }
                     }
                 }
             }
@@ -303,13 +303,29 @@ public unsafe class DialogueWatcher : IDisposable
 
     private string ExtractFirstTextNode(AtkUnitBase* unitBase)
     {
-        if (unitBase == null || unitBase->RootNode == null) return string.Empty;
+        if (unitBase == null) return string.Empty;
         try
         {
-            for (var i = 0; i < unitBase->UldManager.NodeListCount; i++)
+            return ExtractTextFromUld(&unitBase->UldManager);
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private string ExtractTextFromUld(AtkUldManager* uldManager, int depth = 0)
+    {
+        if (uldManager == null || uldManager->NodeList == null || depth > 5) return string.Empty;
+
+        try
+        {
+            for (var i = 0; i < uldManager->NodeListCount; i++)
             {
-                var node = unitBase->UldManager.NodeList[i];
-                if (node != null && node->Type == NodeType.Text)
+                var node = uldManager->NodeList[i];
+                if (node == null) continue;
+
+                if (node->Type == NodeType.Text)
                 {
                     var textNode = (AtkTextNode*)node;
                     var text = textNode->NodeText.ToString();
@@ -318,12 +334,25 @@ public unsafe class DialogueWatcher : IDisposable
                         return CleanGameText(text);
                     }
                 }
+                else if (node->Type == NodeType.Component)
+                {
+                    var compNode = (AtkComponentNode*)node;
+                    if (compNode->Component != null)
+                    {
+                        var text = ExtractTextFromUld(&compNode->Component->UldManager, depth + 1);
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            return text;
+                        }
+                    }
+                }
             }
         }
         catch
         {
             // Ignore node inspection exceptions
         }
+
         return string.Empty;
     }
 
