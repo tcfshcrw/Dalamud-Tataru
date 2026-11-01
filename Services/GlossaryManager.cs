@@ -159,7 +159,7 @@ public class GlossaryManager
         return text;
     }
 
-    public async Task<(bool success, string message)> UpdateGlossariesFromTataruAsync()
+    public async Task<(bool success, bool hasUpdated, string message)> UpdateGlossariesFromTataruAsync(bool forceReload = false)
     {
         var targetDataDir = Path.Combine(configDir, "Data");
         try
@@ -169,7 +169,7 @@ public class GlossaryManager
         catch (Exception ex)
         {
             log.Error(ex, $"無法建立目錄：{targetDataDir}");
-            return (false, $"無法建立目錄：{ex.Message}");
+            return (false, false, $"無法建立目錄：{ex.Message}");
         }
 
         var filesToDownload = new[]
@@ -220,22 +220,59 @@ public class GlossaryManager
             {
                 var err = lastEx?.Message ?? "伺服器無回應或格式錯誤";
                 log.Error($"下載 {file} 失敗：{err}");
-                return (false, $"下載 {file} 失敗：{err}");
+                return (false, false, $"下載 {file} 失敗：{err}");
             }
 
             downloadedFiles[file] = content;
         }
 
+        var assemblyDir = Path.GetDirectoryName(typeof(GlossaryManager).Assembly.Location) ?? string.Empty;
+        var bundledDataDir = Path.Combine(assemblyDir, "Data");
+
+        bool hasChanges = false;
         foreach (var kvp in downloadedFiles)
         {
-            var filePath = Path.Combine(targetDataDir, kvp.Key);
-            await File.WriteAllTextAsync(filePath, kvp.Value);
+            var userFilePath = Path.Combine(targetDataDir, kvp.Key);
+            var bundledFilePath = Path.Combine(bundledDataDir, kvp.Key);
+
+            string? localContent = null;
+            if (File.Exists(userFilePath))
+            {
+                localContent = await File.ReadAllTextAsync(userFilePath);
+            }
+            else if (File.Exists(bundledFilePath))
+            {
+                localContent = await File.ReadAllTextAsync(bundledFilePath);
+            }
+
+            if (localContent == null || !string.Equals(localContent.Trim(), kvp.Value.Trim(), StringComparison.Ordinal))
+            {
+                hasChanges = true;
+            }
         }
 
-        LoadGlossaries(configDir);
+        if (hasChanges || forceReload)
+        {
+            foreach (var kvp in downloadedFiles)
+            {
+                var filePath = Path.Combine(targetDataDir, kvp.Key);
+                await File.WriteAllTextAsync(filePath, kvp.Value);
+            }
 
-        var msg = $"Tataru 文本庫更新成功！已載入 {nameMap.Count} 筆專有名詞對照、繁中校正 {postReplaceCht.Count} 筆、簡中校正 {postReplaceChs.Count} 筆。";
-        log.Information(msg);
-        return (true, msg);
+            LoadGlossaries(configDir);
+        }
+
+        if (hasChanges)
+        {
+            var msg = $"Tataru 文本庫已更新至最新版本！已載入 {nameMap.Count} 筆專有名詞對照、繁中校正 {postReplaceCht.Count} 筆、簡中校正 {postReplaceChs.Count} 筆。";
+            log.Information(msg);
+            return (true, true, msg);
+        }
+        else
+        {
+            var msg = $"Tataru 文本庫已是最新版本（目前載入 {nameMap.Count} 筆專有名詞對照），無須更新。";
+            log.Information(msg);
+            return (true, false, msg);
+        }
     }
 }

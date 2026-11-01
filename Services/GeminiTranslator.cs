@@ -37,9 +37,13 @@ public class GeminiTranslator : IDisposable
         };
     }
 
-    public void ClearCache()
+    public int CacheCount => cache.Count;
+
+    public int ClearCache()
     {
+        var count = cache.Count;
         cache.Clear();
+        return count;
     }
 
     private static bool IsGeminiError(string text)

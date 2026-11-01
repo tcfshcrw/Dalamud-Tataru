@@ -475,6 +475,7 @@ public class ConfigWindow : Window
         ImGui.BulletText("/tataru toggle - 開關字幕懸浮視窗");
         ImGui.BulletText("/tataru lms [on|off] - 開關或切換至 LM Studio 本地模型 (/tataru LMS)");
         ImGui.BulletText("/tataru gemini [on|off] - 開關或切換至 Gemini AI");
+        ImGui.BulletText("/tataru clearcache - 清除所有翻譯暫存快取");
         ImGui.BulletText("/tataru update - 從 Tataru-Assistant 雲端立即更新最新文本庫");
     }
 
@@ -487,7 +488,7 @@ public class ConfigWindow : Window
         {
             try
             {
-                var (success, msg) = await glossary.UpdateGlossariesFromTataruAsync();
+                var (success, hasUpdated, msg) = await glossary.UpdateGlossariesFromTataruAsync(forceReload: true);
                 glossaryStatus = success ? $"✔ {msg}" : $"❌ 更新失敗：{msg}";
             }
             catch (Exception ex)

@@ -58,10 +58,14 @@ public class Plugin : IDalamudPlugin
             {
                 try
                 {
-                    var (success, msg) = await glossaryManager.UpdateGlossariesFromTataruAsync();
+                    var (success, hasUpdated, msg) = await glossaryManager.UpdateGlossariesFromTataruAsync();
                     if (success)
                     {
                         PluginLog.Information(msg);
+                        if (hasUpdated)
+                        {
+                            ChatGui.Print($"[Tataru] 檢測到新文本庫並已自動更新！{msg}");
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -204,12 +208,17 @@ public class Plugin : IDalamudPlugin
                 break;
 
             case "update" or "glossary":
-                ChatGui.Print("[Tataru] 正在從 Tataru-Assistant 雲端更新文本與專有名詞庫...");
+                ChatGui.Print("[Tataru] 正在從 Tataru-Assistant 雲端檢查文本庫更新...");
                 Task.Run(async () =>
                 {
-                    var (success, msg) = await glossaryManager.UpdateGlossariesFromTataruAsync();
+                    var (success, hasUpdated, msg) = await glossaryManager.UpdateGlossariesFromTataruAsync(forceReload: true);
                     ChatGui.Print($"[Tataru] {msg}");
                 });
+                break;
+
+            case "clearcache" or "clear":
+                var clearedCount = translator.ClearCache();
+                ChatGui.Print($"[Tataru] 已成功清除 {clearedCount} 筆翻譯暫存快取。");
                 break;
 
             case "help":
@@ -218,6 +227,7 @@ public class Plugin : IDalamudPlugin
                 ChatGui.Print("  /tataru toggle - 開啟或關閉字幕懸浮窗");
                 ChatGui.Print("  /tataru LMS [on|off] - 開關或切換主引擎為 LM Studio 本地模型");
                 ChatGui.Print("  /tataru gemini [on|off] - 開關或切換主引擎為 Gemini");
+                ChatGui.Print("  /tataru clearcache - 清除所有翻譯暫存快取");
                 ChatGui.Print("  /tataru update - 從 Tataru-Assistant 雲端更新最新文本與專有名詞庫");
                 break;
 
