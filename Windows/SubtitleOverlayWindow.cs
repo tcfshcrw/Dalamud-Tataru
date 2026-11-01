@@ -107,7 +107,7 @@ public class SubtitleOverlayWindow : Window
                 if (dialogueWatcher.TalkAddonSize.HasValue)
                 {
                     var baseSize = dialogueWatcher.TalkAddonSize.Value + config.ReplaceSizeOffset;
-                    Size = new Vector2(Math.Max(200, baseSize.X), Math.Max(50, baseSize.Y));
+                    Size = new Vector2(Math.Max(200f, baseSize.X), Math.Max(50f, baseSize.Y));
                 }
                 PositionCondition = ImGuiCond.Always;
                 SizeCondition = ImGuiCond.Always;

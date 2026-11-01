@@ -447,19 +447,17 @@ public class ConfigWindow : Window
             ImGui.TextDisabled("覆蓋模式專屬的文字放大縮小倍率，與獨立字幕框互不干擾。");
 
             var posOffset = config.ReplacePositionOffset;
-            float[] offsetArr = new[] { posOffset.X, posOffset.Y };
-            if (ImGui.DragFloat2("覆蓋視窗座標偏移 (X, Y 像素)", ref offsetArr[0], 1.0f, -600f, 600f, "%.0f px"))
+            if (ImGui.DragFloat2("覆蓋視窗座標偏移 (X, Y 像素)", ref posOffset, 1.0f, -600f, 600f, "%.0f px"))
             {
-                config.ReplacePositionOffset = new Vector2(offsetArr[0], offsetArr[1]);
+                config.ReplacePositionOffset = posOffset;
                 config.Save();
             }
             ImGui.TextDisabled("相對於原版對話框錨點的微調偏移量。");
 
             var sizeOffset = config.ReplaceSizeOffset;
-            float[] sizeArr = new[] { sizeOffset.X, sizeOffset.Y };
-            if (ImGui.DragFloat2("覆蓋視窗尺寸微調 (寬, 高 像素)", ref sizeArr[0], 1.0f, -600f, 600f, "%.0f px"))
+            if (ImGui.DragFloat2("覆蓋視窗尺寸微調 (寬, 高 像素)", ref sizeOffset, 1.0f, -600f, 600f, "%.0f px"))
             {
-                config.ReplaceSizeOffset = new Vector2(sizeArr[0], sizeArr[1]);
+                config.ReplaceSizeOffset = sizeOffset;
                 config.Save();
             }
 
