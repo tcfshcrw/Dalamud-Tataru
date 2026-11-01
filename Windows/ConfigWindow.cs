@@ -447,15 +447,6 @@ public class ConfigWindow : Window
         }
         ImGui.Spacing();
 
-        var origRatio = config.OriginalFontScaleRatio;
-        if (ImGui.SliderFloat("日文原文縮放比例 (相對於譯文)", ref origRatio, 0.30f, 1.00f, "%.2f 倍"))
-        {
-            config.OriginalFontScaleRatio = Math.Clamp(origRatio, 0.30f, 1.00f);
-            config.Save();
-        }
-        ImGui.TextDisabled("專門縮小日文原文對照字體（預設 0.75 倍）。當泡泡框空間有限或長句過多時，調小此數值可大幅節省空間！");
-        ImGui.Spacing();
-
         var opacity = config.WindowOpacity;
         if (ImGui.SliderFloat("視窗背景不透明度 (Opacity)", ref opacity, 0.0f, 1.0f, "%.2f"))
         {
@@ -465,38 +456,40 @@ public class ConfigWindow : Window
         ImGui.TextDisabled("調整字幕底色深淺：0.00 為全透明（純文字懸浮無黑底），1.00 為純黑完全不透明。");
         ImGui.Spacing();
 
-        var showSpeaker = config.ShowSpeaker;
-        if (ImGui.Checkbox("顯示說話者名稱 (僅獨立字幕模式生效)", ref showSpeaker))
+        if (!config.ReplaceGameTalkAddon)
         {
-            config.ShowSpeaker = showSpeaker;
-            config.Save();
-        }
-        ImGui.TextDisabled("在獨立字幕框模式下顯示說話者名稱。啟用「原生對話框覆蓋模式」時將自動忽略（不重複顯示說話者，由遊戲原版姓名條呈現）。");
-
-        if (config.ReplaceGameTalkAddon)
-        {
-            var replaceShowOriginal = config.ReplaceShowOriginalText;
-            if (ImGui.Checkbox("顯示日文原文對照 (覆蓋模式)", ref replaceShowOriginal))
+            var showSpeaker = config.ShowSpeaker;
+            if (ImGui.Checkbox("顯示說話者名稱 (僅獨立字幕模式生效)", ref showSpeaker))
             {
-                config.ReplaceShowOriginalText = replaceShowOriginal;
+                config.ShowSpeaker = showSpeaker;
                 config.Save();
             }
-            ImGui.TextDisabled("在原生對話覆蓋視窗中保留日文原文對照（字體尺寸由上方「日文原文縮放比例」獨立控制）。若取消勾選則僅顯示中文譯文。");
-        }
-        else
-        {
+            ImGui.TextDisabled("在獨立字幕框模式下顯示說話者名稱。啟用「原生對話框覆蓋模式」時將自動忽略（由遊戲原版姓名條呈現）。");
+            ImGui.Spacing();
+
             var showOriginal = config.ShowOriginalText;
             if (ImGui.Checkbox("顯示日文原文對照 (獨立字幕模式)", ref showOriginal))
             {
                 config.ShowOriginalText = showOriginal;
                 config.Save();
             }
-            ImGui.TextDisabled("在獨立字幕視窗中顯示日文原文對照（字體尺寸由上方「日文原文縮放比例」獨立控制）。");
+            ImGui.TextDisabled("在獨立字幕視窗中顯示日文原文對照。");
+
+            if (config.ShowOriginalText)
+            {
+                var origRatio = config.OriginalFontScaleRatio;
+                if (ImGui.SliderFloat("日文原文縮放比例 (相對於譯文)##standaloneOrigRatio", ref origRatio, 0.30f, 1.00f, "%.2f 倍"))
+                {
+                    config.OriginalFontScaleRatio = Math.Clamp(origRatio, 0.30f, 1.00f);
+                    config.Save();
+                }
+                ImGui.TextDisabled("專門縮小日文原文對照字體（預設 0.75 倍）。");
+            }
         }
 
         ImGui.Spacing();
         var replaceTalk = config.ReplaceGameTalkAddon;
-        if (ImGui.Checkbox("原生對話框覆蓋模式：覆蓋遊戲對話框位置並隱藏原版泡泡框 (保留日文雙語輸出)", ref replaceTalk))
+        if (ImGui.Checkbox("原生對話框覆蓋模式：覆蓋遊戲對話框位置並隱藏原版泡泡框", ref replaceTalk))
         {
             config.ReplaceGameTalkAddon = replaceTalk;
             config.Save();
@@ -515,12 +508,32 @@ public class ConfigWindow : Window
                 overlayWindow.IsOpen = true;
             }
         }
-        ImGui.TextDisabled("啟用後，遊戲原生的 NPC 對話泡泡將被完全隱藏，由 Tataru 字幕視窗取而代之覆蓋於原位置，並同時顯示中文譯文與日文原文。對話結束時視窗會即刻消失。依然可正常滑鼠點擊或空白鍵推進對話。");
+        ImGui.TextDisabled("啟用後，遊戲原生的 NPC 對話泡泡將被完全隱藏，由 Tataru 字幕視窗取而代之覆蓋於原位置。對話結束時視窗會即刻消失。依然可正常滑鼠點擊或空白鍵推進對話。");
 
         if (config.ReplaceGameTalkAddon)
         {
             ImGui.Spacing();
             ImGui.Indent();
+
+            var replaceShowOriginal = config.ReplaceShowOriginalText;
+            if (ImGui.Checkbox("在覆蓋模式下保留原文輸出 (日文雙語對照)", ref replaceShowOriginal))
+            {
+                config.ReplaceShowOriginalText = replaceShowOriginal;
+                config.Save();
+            }
+            ImGui.TextDisabled("啟用後，覆蓋視窗將同時顯示中文譯文與日文原文；若取消勾選，則僅輸出中文譯文（為對話框節省空間，防止長句溢出）。");
+
+            if (config.ReplaceShowOriginalText)
+            {
+                var origRatio = config.OriginalFontScaleRatio;
+                if (ImGui.SliderFloat("日文原文縮放比例 (相對於譯文)##replaceOrigRatio", ref origRatio, 0.30f, 1.00f, "%.2f 倍"))
+                {
+                    config.OriginalFontScaleRatio = Math.Clamp(origRatio, 0.30f, 1.00f);
+                    config.Save();
+                }
+                ImGui.TextDisabled("專門縮小日文原文對照字體（預設 0.75 倍）。當泡泡框空間有限或長句過多時，調小此數值可大幅節省空間！");
+            }
+            ImGui.Spacing();
 
             ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "泡泡框風格選擇 (勾選切換)");
             ImGui.Separator();

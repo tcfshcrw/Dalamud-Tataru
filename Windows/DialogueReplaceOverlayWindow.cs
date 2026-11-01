@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Dalamud.Interface.ManagedFontAtlas;
+using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
 using DalamudTataru.Models;
 using DalamudTataru.Services;
@@ -20,6 +21,12 @@ public class DialogueReplaceOverlayWindow : Window
 
     public bool IsConfigOpen { get; set; } = false;
 
+    private static float GetGlobalScale()
+    {
+        float s = ImGuiHelpers.GlobalScale;
+        return s > 0.1f ? s : 1.0f;
+    }
+
     public void ResetPosition()
     {
         needsReset = true;
@@ -28,7 +35,7 @@ public class DialogueReplaceOverlayWindow : Window
     public void ApplyTalkAddonBounds(Vector2 pos, Vector2 size)
     {
         Position = pos;
-        Size = size;
+        Size = size / GetGlobalScale();
         needsApplyBounds = true;
 
         config.ReplaceOverlayPosition = pos;
@@ -91,30 +98,16 @@ public class DialogueReplaceOverlayWindow : Window
             ImGui.SetNextWindowBgAlpha(config.WindowOpacity);
         }
 
-        if (needsReset)
-        {
-            Position = new Vector2(400, 750);
-            Size = new Vector2(650, 180);
-            PositionCondition = ImGuiCond.Always;
-            SizeCondition = ImGuiCond.Always;
-            needsReset = false;
-            return;
-        }
-
-        if (needsApplyBounds)
-        {
-            Position = config.ReplaceOverlayPosition;
-            Size = config.ReplaceOverlaySize;
-            PositionCondition = ImGuiCond.Always;
-            SizeCondition = ImGuiCond.Always;
-            needsApplyBounds = false;
-            return;
-        }
+        float globalScale = GetGlobalScale();
 
         if (IsConfigOpen)
         {
-            // Title bar visible, freely movable and resizable, mouse clickable
+            // Title bar visible for manual drag when not auto-locked to an active Talk addon
             Flags = ImGuiWindowFlags.NoScrollbar;
+            if (config.ReplaceFollowTalkAddonPosition && dialogueWatcher.TalkAddonPosition.HasValue)
+            {
+                Flags |= ImGuiWindowFlags.NoTitleBar;
+            }
             if (config.ReplaceUseNativeBubble || config.ReplaceUseParchmentTheme)
             {
                 Flags |= ImGuiWindowFlags.NoBackground;
@@ -135,6 +128,26 @@ public class DialogueReplaceOverlayWindow : Window
             }
         }
 
+        if (needsReset)
+        {
+            Position = new Vector2(400, 750);
+            Size = new Vector2(650, 180);
+            PositionCondition = ImGuiCond.Always;
+            SizeCondition = ImGuiCond.Always;
+            needsReset = false;
+            return;
+        }
+
+        if (needsApplyBounds)
+        {
+            Position = config.ReplaceOverlayPosition;
+            Size = config.ReplaceOverlaySize / globalScale;
+            PositionCondition = ImGuiCond.Always;
+            SizeCondition = ImGuiCond.Always;
+            needsApplyBounds = false;
+            return;
+        }
+
         if (config.ReplaceFollowTalkAddonPosition && dialogueWatcher.TalkAddonPosition.HasValue)
         {
             Position = dialogueWatcher.TalkAddonPosition.Value + config.ReplacePositionOffset;
@@ -147,7 +160,8 @@ public class DialogueReplaceOverlayWindow : Window
 
         if (config.ReplaceAutoSyncSize && dialogueWatcher.TalkAddonSize.HasValue)
         {
-            Size = dialogueWatcher.TalkAddonSize.Value + config.ReplaceSizeOffset;
+            // Dalamud Window 內部會自動將 Window.Size 乘上 ImGuiHelpers.GlobalScale，因此需先除以 globalScale 才能得到精確的螢幕實體像素寬高
+            Size = (dialogueWatcher.TalkAddonSize.Value + config.ReplaceSizeOffset) / globalScale;
             SizeCondition = ImGuiCond.Always;
         }
         else
@@ -177,8 +191,8 @@ public class DialogueReplaceOverlayWindow : Window
             var scale = Math.Clamp(config.ReplaceFontScale, 0.5f, 3.0f);
             ImGui.SetWindowFontScale(scale);
 
-            // 方案 B 已直接對齊遊戲原生文字框 AtkTextNode228 (其右界本身已在翻頁金箭頭左側)，僅需保留 28px 安全邊距
-            float rightMargin = config.ReplaceUseNativeBubble ? 28f : 32f;
+            // 方案 B 已直接對齊遊戲原生文字框 AtkTextNode228 (其右界本身已在翻頁金箭頭左側)，僅需保留 16px 視窗內距
+            float rightMargin = config.ReplaceUseNativeBubble ? 16f : 32f;
             float wrapPos = Math.Max(100f, ImGui.GetWindowWidth() - rightMargin);
             ImGui.PushTextWrapPos(wrapPos);
 
