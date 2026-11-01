@@ -24,6 +24,8 @@ public unsafe class DialogueWatcher : IDisposable
     private string lastText = string.Empty;
     private DialogueType lastType = DialogueType.Talk;
     private bool wasVisible = false;
+    private int absentFrames = 0;
+    private const int AbsentThreshold = 3;
 
     public event Action<DialogueEntry>? OnDialogueChanged;
     public event Action? OnDialogueClosed;
@@ -100,42 +102,47 @@ public unsafe class DialogueWatcher : IDisposable
 
                     if (talkAddon->AtkUnitBase.IsVisible)
                     {
-                        currentVisible = true;
                         var speaker = ReadTextNode(talkAddon->AtkTextNode220);
                         var text = ReadTextNode(talkAddon->AtkTextNode228);
 
-                        if (config.ReplaceGameTalkAddon)
+                        // 必須確實有對話文字才視為對話進行中（避免對話點掉或過場過渡時 AtkUnitBase 仍殘留 IsVisible）
+                        if (!string.IsNullOrWhiteSpace(text))
                         {
-                            float scale = talkAddon->AtkUnitBase.Scale > 0 ? talkAddon->AtkUnitBase.Scale : 1.0f;
-                            float width = 600f;
-                            float height = 140f;
+                            currentVisible = true;
 
-                            if (talkAddon->AtkUnitBase.WindowNode != null && talkAddon->AtkUnitBase.WindowNode->Width > 0)
+                            if (config.ReplaceGameTalkAddon)
                             {
-                                width = talkAddon->AtkUnitBase.WindowNode->Width * scale;
-                                height = talkAddon->AtkUnitBase.WindowNode->Height * scale;
+                                float scale = talkAddon->AtkUnitBase.Scale > 0 ? talkAddon->AtkUnitBase.Scale : 1.0f;
+                                float width = 600f;
+                                float height = 140f;
+
+                                if (talkAddon->AtkUnitBase.WindowNode != null && talkAddon->AtkUnitBase.WindowNode->Width > 0)
+                                {
+                                    width = talkAddon->AtkUnitBase.WindowNode->Width * scale;
+                                    height = talkAddon->AtkUnitBase.WindowNode->Height * scale;
+                                }
+                                else if (talkAddon->AtkUnitBase.RootNode != null && talkAddon->AtkUnitBase.RootNode->Width > 0 && talkAddon->AtkUnitBase.RootNode->Width < 1800)
+                                {
+                                    width = talkAddon->AtkUnitBase.RootNode->Width * scale;
+                                    height = talkAddon->AtkUnitBase.RootNode->Height * scale;
+                                }
+                                else if (talkAddon->AtkTextNode228 != null && talkAddon->AtkTextNode228->AtkResNode.Width > 0)
+                                {
+                                    width = (talkAddon->AtkTextNode228->AtkResNode.Width + 60) * scale;
+                                    height = (talkAddon->AtkTextNode228->AtkResNode.Height + 50) * scale;
+                                }
+
+                                TalkAddonPosition = new Vector2(talkAddon->AtkUnitBase.X, talkAddon->AtkUnitBase.Y);
+                                TalkAddonSize = new Vector2(width, height);
                             }
-                            else if (talkAddon->AtkUnitBase.RootNode != null && talkAddon->AtkUnitBase.RootNode->Width > 0 && talkAddon->AtkUnitBase.RootNode->Width < 1800)
+                            else
                             {
-                                width = talkAddon->AtkUnitBase.RootNode->Width * scale;
-                                height = talkAddon->AtkUnitBase.RootNode->Height * scale;
-                            }
-                            else if (talkAddon->AtkTextNode228 != null && talkAddon->AtkTextNode228->AtkResNode.Width > 0)
-                            {
-                                width = (talkAddon->AtkTextNode228->AtkResNode.Width + 60) * scale;
-                                height = (talkAddon->AtkTextNode228->AtkResNode.Height + 50) * scale;
+                                TalkAddonPosition = null;
+                                TalkAddonSize = null;
                             }
 
-                            TalkAddonPosition = new Vector2(talkAddon->AtkUnitBase.X, talkAddon->AtkUnitBase.Y);
-                            TalkAddonSize = new Vector2(width, height);
+                            CheckAndEmit(DialogueType.Talk, speaker, text);
                         }
-                        else
-                        {
-                            TalkAddonPosition = null;
-                            TalkAddonSize = null;
-                        }
-
-                        CheckAndEmit(DialogueType.Talk, speaker, text);
                     }
                     else
                     {
@@ -165,9 +172,12 @@ public unsafe class DialogueWatcher : IDisposable
                 var subAddon = (AtkUnitBase*)subPtr.Address;
                 if (subAddon != null && subAddon->IsVisible)
                 {
-                    currentVisible = true;
                     var text = ExtractFirstTextNode(subAddon);
-                    CheckAndEmit(DialogueType.Subtitle, string.Empty, text);
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        currentVisible = true;
+                        CheckAndEmit(DialogueType.Subtitle, string.Empty, text);
+                    }
                 }
             }
         }
@@ -181,19 +191,74 @@ public unsafe class DialogueWatcher : IDisposable
                 var battleAddon = (AtkUnitBase*)battlePtr.Address;
                 if (battleAddon != null && battleAddon->IsVisible)
                 {
-                    currentVisible = true;
                     var (speaker, text) = ExtractBattleTalkNodes(battleAddon);
-                    CheckAndEmit(DialogueType.BattleTalk, speaker, text);
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        currentVisible = true;
+                        CheckAndEmit(DialogueType.BattleTalk, speaker, text);
+                    }
                 }
             }
         }
 
-        if (wasVisible && !currentVisible)
+        if (currentVisible)
         {
-            OnDialogueClosed?.Invoke();
+            absentFrames = 0;
+            wasVisible = true;
         }
+        else
+        {
+            TalkAddonPosition = null;
+            TalkAddonSize = null;
 
-        wasVisible = currentVisible;
+            if (wasVisible)
+            {
+                absentFrames++;
+                // 連續數幀皆無任何對話訊號時，判定對話已關閉／點擊結束
+                if (absentFrames >= AbsentThreshold)
+                {
+                    wasVisible = false;
+                    absentFrames = 0;
+                    lastSpeaker = string.Empty;
+                    lastText = string.Empty;
+
+                    RestoreTalkAddonState();
+                    OnDialogueClosed?.Invoke();
+                }
+            }
+        }
+    }
+
+    private void RestoreTalkAddonState()
+    {
+        if (isTalkAlphaZeroed || isTalkTextNodeHidden)
+        {
+            try
+            {
+                var talkPtr = gameGui.GetAddonByName("Talk");
+                if (!talkPtr.IsNull)
+                {
+                    var talkAddon = (AddonTalk*)talkPtr.Address;
+                    if (talkAddon != null)
+                    {
+                        if (isTalkAlphaZeroed)
+                        {
+                            talkAddon->AtkUnitBase.Alpha = 255;
+                            isTalkAlphaZeroed = false;
+                        }
+                        if (isTalkTextNodeHidden && talkAddon->AtkTextNode228 != null)
+                        {
+                            talkAddon->AtkTextNode228->AtkResNode.ToggleVisibility(true);
+                            isTalkTextNodeHidden = false;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore addon restore error
+            }
+        }
     }
 
     private void CheckAndEmit(DialogueType type, string speaker, string text)
@@ -312,31 +377,6 @@ public unsafe class DialogueWatcher : IDisposable
     public void Dispose()
     {
         this.framework.Update -= OnFrameworkUpdate;
-
-        if (isTalkAlphaZeroed || isTalkTextNodeHidden)
-        {
-            try
-            {
-                var talkPtr = gameGui.GetAddonByName("Talk");
-                if (!talkPtr.IsNull)
-                {
-                    var talkAddon = (AddonTalk*)talkPtr.Address;
-                    if (talkAddon != null)
-                    {
-                        talkAddon->AtkUnitBase.Alpha = 255;
-                        if (talkAddon->AtkTextNode228 != null)
-                        {
-                            talkAddon->AtkTextNode228->AtkResNode.ToggleVisibility(true);
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // Ignore addon restore error on disposal
-            }
-            isTalkAlphaZeroed = false;
-            isTalkTextNodeHidden = false;
-        }
+        RestoreTalkAddonState();
     }
 }

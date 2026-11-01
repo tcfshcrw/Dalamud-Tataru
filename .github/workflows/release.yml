@@ -45,7 +45,7 @@ jobs:
           $dayStr = $dayOfWeek.ToString("D2")
 
           $baseTag = "00.$yy.$weekStr.$dayStr"
-          $baseAssembly = "0.$yy.$week.$dayOfWeek"
+          $baseAssembly = "0.$yy.$week.$($dayOfWeek * 100)"
 
           $versionTag = $baseTag
           $assemblyVersion = $baseAssembly
