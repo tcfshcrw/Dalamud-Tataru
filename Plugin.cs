@@ -240,10 +240,7 @@ public class Plugin : IDalamudPlugin
                     Configuration.ReplaceGameTalkAddon = !Configuration.ReplaceGameTalkAddon;
                 }
                 Configuration.Save();
-                if (!Configuration.ReplaceGameTalkAddon)
-                {
-                    overlayWindow.ResetToStandalonePosition();
-                }
+                overlayWindow.ApplyActiveProfile();
                 ChatGui.Print($"[Tataru] 原生對話框覆蓋模式已切換為：{(Configuration.ReplaceGameTalkAddon ? "開啟 (隱藏原生泡泡並雙語顯示)" : "關閉 (已切回獨立翻譯框位置)")}");
                 break;
 

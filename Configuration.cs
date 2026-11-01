@@ -42,6 +42,9 @@ public class Configuration : IPluginConfiguration
     // UI Overlay Settings
     public bool ReplaceGameTalkAddon { get; set; } = false;
     public float ReplaceFontScale { get; set; } = 1.0f;
+    public Vector2 ReplaceOverlayPosition { get; set; } = new Vector2(400, 750);
+    public Vector2 ReplaceOverlaySize { get; set; } = new Vector2(650, 180);
+    public bool ReplaceFollowTalkAddonPosition { get; set; } = true;
     public Vector2 ReplacePositionOffset { get; set; } = Vector2.Zero;
     public Vector2 ReplaceSizeOffset { get; set; } = Vector2.Zero;
     public bool ShowOriginalText { get; set; } = false;

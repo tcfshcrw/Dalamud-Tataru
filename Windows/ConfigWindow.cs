@@ -388,13 +388,26 @@ public class ConfigWindow : Window
         ImGui.Separator();
         ImGui.Spacing();
 
-        var fontScale = config.FontScale;
-        if (ImGui.SliderFloat("字幕文字縮放倍率", ref fontScale, 0.5f, 3.0f, "%.2f 倍"))
+        if (config.ReplaceGameTalkAddon)
         {
-            config.FontScale = Math.Clamp(fontScale, 0.5f, 3.0f);
-            config.Save();
+            var replaceFontScale = config.ReplaceFontScale;
+            if (ImGui.SliderFloat("文字縮放倍率 (覆蓋模式專屬)", ref replaceFontScale, 0.5f, 3.0f, "%.2f 倍"))
+            {
+                config.ReplaceFontScale = Math.Clamp(replaceFontScale, 0.5f, 3.0f);
+                config.Save();
+            }
+            ImGui.TextDisabled("目前已啟用覆蓋模式，此處調整覆蓋模式專屬文字尺寸（與獨立模式互不影響）。");
         }
-        ImGui.TextDisabled("直接放大或縮小字幕文字尺寸（預設 1.00 倍，可調至 1.50 ~ 2.00 倍）。");
+        else
+        {
+            var fontScale = config.FontScale;
+            if (ImGui.SliderFloat("文字縮放倍率 (獨立字幕模式)", ref fontScale, 0.5f, 3.0f, "%.2f 倍"))
+            {
+                config.FontScale = Math.Clamp(fontScale, 0.5f, 3.0f);
+                config.Save();
+            }
+            ImGui.TextDisabled("直接放大或縮小獨立字幕文字尺寸（預設 1.00 倍）。");
+        }
         ImGui.Spacing();
 
         var opacity = config.WindowOpacity;
@@ -426,10 +439,7 @@ public class ConfigWindow : Window
         {
             config.ReplaceGameTalkAddon = replaceTalk;
             config.Save();
-            if (!replaceTalk)
-            {
-                overlayWindow.ResetToStandalonePosition();
-            }
+            overlayWindow.ApplyActiveProfile();
         }
         ImGui.TextDisabled("啟用後，遊戲原生的 NPC 對話泡泡將被完全隱藏，由 Tataru 字幕視窗取而代之覆蓋於原位置，並同時顯示中文譯文與日文原文。對話結束時視窗會即刻消失。依然可正常滑鼠點擊或空白鍵推進對話。");
 
@@ -438,34 +448,52 @@ public class ConfigWindow : Window
             ImGui.Spacing();
             ImGui.Indent();
 
-            var replaceFontScale = config.ReplaceFontScale;
-            if (ImGui.SliderFloat("覆蓋模式專屬文字縮放倍率", ref replaceFontScale, 0.5f, 3.0f, "%.2f 倍"))
+            var replaceSize = config.ReplaceOverlaySize;
+            if (ImGui.DragFloat2("覆蓋視窗尺寸 (寬, 高 像素)", ref replaceSize, 1.0f, 200f, 2560f, "%.0f px"))
             {
-                config.ReplaceFontScale = Math.Clamp(replaceFontScale, 0.5f, 3.0f);
+                config.ReplaceOverlaySize = new Vector2(Math.Max(200f, replaceSize.X), Math.Max(50f, replaceSize.Y));
                 config.Save();
+                overlayWindow.ApplyActiveProfile();
             }
-            ImGui.TextDisabled("覆蓋模式專屬的文字放大縮小倍率，與獨立字幕框互不干擾。");
+            ImGui.TextDisabled("覆蓋視窗的寬度與高度。開啟設定時亦可直接拉動字幕預覽視窗邊框進行調整。");
 
-            var posOffset = config.ReplacePositionOffset;
-            if (ImGui.DragFloat2("覆蓋視窗座標偏移 (X, Y 像素)", ref posOffset, 1.0f, -600f, 600f, "%.0f px"))
+            var followTalk = config.ReplaceFollowTalkAddonPosition;
+            if (ImGui.Checkbox("對話時自動對齊遊戲對話框座標", ref followTalk))
             {
-                config.ReplacePositionOffset = posOffset;
+                config.ReplaceFollowTalkAddonPosition = followTalk;
                 config.Save();
-            }
-            ImGui.TextDisabled("相對於原版對話框錨點的微調偏移量。");
-
-            var sizeOffset = config.ReplaceSizeOffset;
-            if (ImGui.DragFloat2("覆蓋視窗尺寸微調 (寬, 高 像素)", ref sizeOffset, 1.0f, -600f, 600f, "%.0f px"))
-            {
-                config.ReplaceSizeOffset = sizeOffset;
-                config.Save();
+                overlayWindow.ApplyActiveProfile();
             }
 
-            if (ImGui.Button("重設覆蓋位置與尺寸偏移為預設值"))
+            if (config.ReplaceFollowTalkAddonPosition)
             {
+                var posOffset = config.ReplacePositionOffset;
+                if (ImGui.DragFloat2("對齊座標微調偏移 (X, Y 像素)", ref posOffset, 1.0f, -600f, 600f, "%.0f px"))
+                {
+                    config.ReplacePositionOffset = posOffset;
+                    config.Save();
+                }
+                ImGui.TextDisabled("相對於遊戲原版 NPC 對話框錨點的微調偏移量。");
+            }
+            else
+            {
+                var replacePos = config.ReplaceOverlayPosition;
+                if (ImGui.DragFloat2("自訂固定覆蓋座標 (X, Y 像素)", ref replacePos, 1.0f, 0f, 3840f, "%.0f px"))
+                {
+                    config.ReplaceOverlayPosition = replacePos;
+                    config.Save();
+                    overlayWindow.ApplyActiveProfile();
+                }
+                ImGui.TextDisabled("固定覆蓋視窗螢幕座標。開啟設定時亦可直接拖曳字幕預覽視窗標題列。");
+            }
+
+            if (ImGui.Button("重設覆蓋尺寸與位置為預設值 (650x180)"))
+            {
+                config.ReplaceOverlaySize = new Vector2(650, 180);
+                config.ReplaceOverlayPosition = new Vector2(400, 750);
                 config.ReplacePositionOffset = Vector2.Zero;
-                config.ReplaceSizeOffset = Vector2.Zero;
                 config.Save();
+                overlayWindow.ApplyActiveProfile();
             }
 
             ImGui.Unindent();

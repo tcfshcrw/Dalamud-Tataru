@@ -14,14 +14,19 @@ public class SubtitleOverlayWindow : Window
     private DialogueEntry? currentEntry;
     private DateTime lastUpdateTime = DateTime.MinValue;
     private bool isDialogueActive = false;
-    private bool wasReplacedLastFrame = false;
-    private bool needsRestoreStandalone = false;
+    private bool wasInReplaceMode = false;
+    private bool needsApplyProfile = false;
 
     public bool IsConfigOpen { get; set; } = false;
 
+    public void ApplyActiveProfile()
+    {
+        needsApplyProfile = true;
+    }
+
     public void ResetToStandalonePosition()
     {
-        needsRestoreStandalone = true;
+        needsApplyProfile = true;
     }
 
     public SubtitleOverlayWindow(Configuration config, DialogueWatcher dialogueWatcher) 
@@ -34,14 +39,14 @@ public class SubtitleOverlayWindow : Window
 
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(300, 60),
-            MaximumSize = new Vector2(1200, 800)
+            MinimumSize = new Vector2(200, 50),
+            MaximumSize = new Vector2(2560, 1440)
         };
 
-        Size = config.CustomOverlaySize;
+        Size = config.ReplaceGameTalkAddon ? config.ReplaceOverlaySize : config.CustomOverlaySize;
         SizeCondition = ImGuiCond.FirstUseEver;
 
-        Position = config.CustomOverlayPosition;
+        Position = config.ReplaceGameTalkAddon ? config.ReplaceOverlayPosition : config.CustomOverlayPosition;
         PositionCondition = ImGuiCond.FirstUseEver;
 
         IsOpen = true;
@@ -75,14 +80,13 @@ public class SubtitleOverlayWindow : Window
             // Title bar visible, freely movable and resizable, mouse clickable
             Flags = ImGuiWindowFlags.NoScrollbar;
 
-            if (wasReplacedLastFrame || needsRestoreStandalone)
+            if (needsApplyProfile)
             {
-                Position = config.CustomOverlayPosition;
-                Size = config.CustomOverlaySize;
+                Position = config.ReplaceGameTalkAddon ? config.ReplaceOverlayPosition : config.CustomOverlayPosition;
+                Size = config.ReplaceGameTalkAddon ? config.ReplaceOverlaySize : config.CustomOverlaySize;
                 PositionCondition = ImGuiCond.Always;
                 SizeCondition = ImGuiCond.Always;
-                wasReplacedLastFrame = false;
-                needsRestoreStandalone = false;
+                needsApplyProfile = false;
             }
             else
             {
@@ -101,28 +105,32 @@ public class SubtitleOverlayWindow : Window
                 Flags |= ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize;
             }
 
-            if (config.ReplaceGameTalkAddon && isDialogueActive && currentEntry?.Type == DialogueType.Talk && dialogueWatcher.TalkAddonPosition.HasValue)
+            if (config.ReplaceGameTalkAddon)
             {
-                Position = dialogueWatcher.TalkAddonPosition.Value + config.ReplacePositionOffset;
-                if (dialogueWatcher.TalkAddonSize.HasValue)
+                if (config.ReplaceFollowTalkAddonPosition && dialogueWatcher.TalkAddonPosition.HasValue)
                 {
-                    var baseSize = dialogueWatcher.TalkAddonSize.Value + config.ReplaceSizeOffset;
-                    Size = new Vector2(Math.Max(200f, baseSize.X), Math.Max(50f, baseSize.Y));
+                    Position = dialogueWatcher.TalkAddonPosition.Value + config.ReplacePositionOffset;
                 }
+                else
+                {
+                    Position = config.ReplaceOverlayPosition;
+                }
+
+                Size = config.ReplaceOverlaySize;
                 PositionCondition = ImGuiCond.Always;
                 SizeCondition = ImGuiCond.Always;
-                wasReplacedLastFrame = true;
+                wasInReplaceMode = true;
             }
             else
             {
-                if (wasReplacedLastFrame || needsRestoreStandalone)
+                if (wasInReplaceMode || needsApplyProfile)
                 {
                     Position = config.CustomOverlayPosition;
                     Size = config.CustomOverlaySize;
                     PositionCondition = ImGuiCond.Always;
                     SizeCondition = ImGuiCond.Always;
-                    wasReplacedLastFrame = false;
-                    needsRestoreStandalone = false;
+                    wasInReplaceMode = false;
+                    needsApplyProfile = false;
                 }
                 else
                 {
@@ -160,10 +168,38 @@ public class SubtitleOverlayWindow : Window
         }
     }
 
+    private void SaveWindowBoundsIfMoved()
+    {
+        if (needsApplyProfile) return;
+
+        var pos = ImGui.GetWindowPos();
+        var sz = ImGui.GetWindowSize();
+        if (pos.X > 0 && pos.Y > 0 && sz.X > 100 && sz.Y > 40)
+        {
+            if (config.ReplaceGameTalkAddon)
+            {
+                if (config.ReplaceOverlayPosition != pos || config.ReplaceOverlaySize != sz)
+                {
+                    config.ReplaceOverlayPosition = pos;
+                    config.ReplaceOverlaySize = sz;
+                    config.Save();
+                }
+            }
+            else
+            {
+                if (config.CustomOverlayPosition != pos || config.CustomOverlaySize != sz)
+                {
+                    config.CustomOverlayPosition = pos;
+                    config.CustomOverlaySize = sz;
+                    config.Save();
+                }
+            }
+        }
+    }
+
     public override void Draw()
     {
-        bool isReplacingTalk = config.ReplaceGameTalkAddon && (isDialogueActive ? currentEntry?.Type == DialogueType.Talk : IsConfigOpen);
-        var currentFontScale = isReplacingTalk ? config.ReplaceFontScale : config.FontScale;
+        var currentFontScale = config.ReplaceGameTalkAddon ? config.ReplaceFontScale : config.FontScale;
         var scale = Math.Clamp(currentFontScale, 0.5f, 3.0f);
         ImGui.SetWindowFontScale(scale);
         ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 25) / scale);
@@ -176,32 +212,27 @@ public class SubtitleOverlayWindow : Window
                 ImGui.TextColored(config.SpeakerColor, "【タタル (塔塔露)】");
             }
 
-            ImGui.TextColored(config.TextColor, "冒險者大人，設定視窗開啟中！\n此時字幕視窗常駐顯示，您可以拖曳移動位置或調整大小。\n關閉設定視窗後，視窗將自動開啟「滑鼠點擊穿透」。");
-
-            if (config.ShowOriginalText || config.ReplaceGameTalkAddon)
+            if (config.ReplaceGameTalkAddon)
             {
+                ImGui.TextColored(config.TextColor, "冒險者大人，【原生對話框覆蓋模式】預覽中！\n您可以直接在此拖曳視窗移動位置、拉動邊框調整大小。\n對話結束時視窗將自動即刻消失。");
                 ImGui.Spacing();
-                ImGui.TextColored(config.OriginalTextColor, "冒険者さん、設定ウィンドウが開いていまっす！");
+                ImGui.TextColored(config.OriginalTextColor, "冒険者さん、ネイティブ会話置換プレビュー中でっす！");
+            }
+            else
+            {
+                ImGui.TextColored(config.TextColor, "冒險者大人，【獨立字幕模式】預覽中！\n您可以拖曳移動位置或拉動邊框調整大小。\n關閉設定視窗後，視窗將自動開啟「滑鼠點擊穿透」。");
+                if (config.ShowOriginalText)
+                {
+                    ImGui.Spacing();
+                    ImGui.TextColored(config.OriginalTextColor, "冒険者さん、設定ウィンドウが開いていまっす！");
+                }
             }
 
             ImGui.PopTextWrapPos();
             ImGui.SetWindowFontScale(1.0f);
 
-            // 記憶設定視窗開啟時玩家調整的獨立位置與大小
-            if (!config.ReplaceGameTalkAddon && !wasReplacedLastFrame && !needsRestoreStandalone)
-            {
-                var pos = ImGui.GetWindowPos();
-                var sz = ImGui.GetWindowSize();
-                if (pos.X > 0 && pos.Y > 0 && sz.X > 100 && sz.Y > 40)
-                {
-                    if (config.CustomOverlayPosition != pos || config.CustomOverlaySize != sz)
-                    {
-                        config.CustomOverlayPosition = pos;
-                        config.CustomOverlaySize = sz;
-                        config.Save();
-                    }
-                }
-            }
+            // 記憶設定視窗開啟時玩家調整的位置與大小
+            SaveWindowBoundsIfMoved();
             return;
         }
 
@@ -252,20 +283,10 @@ public class SubtitleOverlayWindow : Window
         ImGui.PopTextWrapPos();
         ImGui.SetWindowFontScale(1.0f);
 
-        // 記憶獨立翻譯模式下的位置與大小
-        if (!config.ReplaceGameTalkAddon && !wasReplacedLastFrame && !needsRestoreStandalone)
+        // 如果在設定視窗打開且有對話時玩家調整了位置/大小，也同樣記憶
+        if (IsConfigOpen)
         {
-            var pos = ImGui.GetWindowPos();
-            var sz = ImGui.GetWindowSize();
-            if (pos.X > 0 && pos.Y > 0 && sz.X > 100 && sz.Y > 40)
-            {
-                if (config.CustomOverlayPosition != pos || config.CustomOverlaySize != sz)
-                {
-                    config.CustomOverlayPosition = pos;
-                    config.CustomOverlaySize = sz;
-                    config.Save();
-                }
-            }
+            SaveWindowBoundsIfMoved();
         }
     }
 }
