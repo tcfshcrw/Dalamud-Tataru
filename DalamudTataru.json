@@ -2,7 +2,7 @@
   "Author": "Tataru Team",
   "Name": "Tataru Native Translator",
   "InternalName": "DalamudTataru",
-  "AssemblyVersion": "0.26.44.704",
+  "AssemblyVersion": "0.26.44.705",
   "Description": "原生 FFXIV 劇情即時翻譯插件，整合 Tataru Assistant 專有名詞辭典與 Google Gemini AI，無須開啟任何外部 exe 程式。",
   "ApplicableVersion": "any",
   "DalamudApiLevel": 15,

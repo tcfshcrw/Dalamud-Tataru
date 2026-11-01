@@ -426,8 +426,52 @@ public class ConfigWindow : Window
         {
             config.ReplaceGameTalkAddon = replaceTalk;
             config.Save();
+            if (!replaceTalk)
+            {
+                overlayWindow.ResetToStandalonePosition();
+            }
         }
-        ImGui.TextDisabled("啟用後，遊戲原生的 NPC 對話泡泡將被完全隱藏，由 Tataru 字幕視窗取而代之覆蓋於原位置，並同時顯示中文譯文與日文原文。依然可正常滑鼠點擊或空白鍵推進對話。");
+        ImGui.TextDisabled("啟用後，遊戲原生的 NPC 對話泡泡將被完全隱藏，由 Tataru 字幕視窗取而代之覆蓋於原位置，並同時顯示中文譯文與日文原文。對話結束時視窗會即刻消失。依然可正常滑鼠點擊或空白鍵推進對話。");
+
+        if (config.ReplaceGameTalkAddon)
+        {
+            ImGui.Spacing();
+            ImGui.Indent();
+
+            var replaceFontScale = config.ReplaceFontScale;
+            if (ImGui.SliderFloat("覆蓋模式專屬文字縮放倍率", ref replaceFontScale, 0.5f, 3.0f, "%.2f 倍"))
+            {
+                config.ReplaceFontScale = Math.Clamp(replaceFontScale, 0.5f, 3.0f);
+                config.Save();
+            }
+            ImGui.TextDisabled("覆蓋模式專屬的文字放大縮小倍率，與獨立字幕框互不干擾。");
+
+            var posOffset = config.ReplacePositionOffset;
+            float[] offsetArr = new[] { posOffset.X, posOffset.Y };
+            if (ImGui.DragFloat2("覆蓋視窗座標偏移 (X, Y 像素)", ref offsetArr[0], 1.0f, -600f, 600f, "%.0f px"))
+            {
+                config.ReplacePositionOffset = new Vector2(offsetArr[0], offsetArr[1]);
+                config.Save();
+            }
+            ImGui.TextDisabled("相對於原版對話框錨點的微調偏移量。");
+
+            var sizeOffset = config.ReplaceSizeOffset;
+            float[] sizeArr = new[] { sizeOffset.X, sizeOffset.Y };
+            if (ImGui.DragFloat2("覆蓋視窗尺寸微調 (寬, 高 像素)", ref sizeArr[0], 1.0f, -600f, 600f, "%.0f px"))
+            {
+                config.ReplaceSizeOffset = new Vector2(sizeArr[0], sizeArr[1]);
+                config.Save();
+            }
+
+            if (ImGui.Button("重設覆蓋位置與尺寸偏移為預設值"))
+            {
+                config.ReplacePositionOffset = Vector2.Zero;
+                config.ReplaceSizeOffset = Vector2.Zero;
+                config.Save();
+            }
+
+            ImGui.Unindent();
+        }
 
         ImGui.Spacing();
         ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "視窗控制");
@@ -445,12 +489,12 @@ public class ConfigWindow : Window
         }
 
         var autoHide = config.AutoHideSeconds;
-        if (ImGui.SliderFloat("對話結束後自動隱藏延遲 (秒)", ref autoHide, 0.0f, 30.0f, "%.1f 秒"))
+        if (ImGui.SliderFloat("對話結束後自動隱藏延遲 (獨立模式專用)", ref autoHide, 0.0f, 30.0f, "%.1f 秒"))
         {
             config.AutoHideSeconds = autoHide;
             config.Save();
         }
-        ImGui.TextDisabled("設為 0 秒則不自動隱藏，保留最後一條對話。");
+        ImGui.TextDisabled("僅在「獨立翻譯框」模式生效（設為 0 秒則不隱藏）。在覆蓋模式下，遊戲對話結束時會即刻跟隨關閉。");
 
         ImGui.Spacing();
         ImGui.Separator();
@@ -458,6 +502,7 @@ public class ConfigWindow : Window
 
         if (ImGui.Button("重開字幕視窗 (強制顯示以供調整位置)"))
         {
+            overlayWindow.ResetToStandalonePosition();
             overlayWindow.IsOpen = true;
         }
 

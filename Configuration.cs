@@ -41,6 +41,9 @@ public class Configuration : IPluginConfiguration
 
     // UI Overlay Settings
     public bool ReplaceGameTalkAddon { get; set; } = false;
+    public float ReplaceFontScale { get; set; } = 1.0f;
+    public Vector2 ReplacePositionOffset { get; set; } = Vector2.Zero;
+    public Vector2 ReplaceSizeOffset { get; set; } = Vector2.Zero;
     public bool ShowOriginalText { get; set; } = false;
     public bool ShowSpeaker { get; set; } = true;
     public float FontScale { get; set; } = 1.0f;
@@ -52,6 +55,8 @@ public class Configuration : IPluginConfiguration
     public Vector4 SpeakerColor { get; set; } = new Vector4(1.0f, 0.85f, 0.35f, 1.0f);
     public Vector4 TextColor { get; set; } = new Vector4(0.95f, 0.95f, 0.95f, 1.0f);
     public Vector4 OriginalTextColor { get; set; } = new Vector4(0.65f, 0.65f, 0.65f, 0.85f);
+    public Vector2 CustomOverlayPosition { get; set; } = new Vector2(400, 750);
+    public Vector2 CustomOverlaySize { get; set; } = new Vector2(600, 140);
 
     [NonSerialized]
     private IDalamudPluginInterface? pluginInterface;
