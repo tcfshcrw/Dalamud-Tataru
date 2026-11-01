@@ -30,6 +30,7 @@ public class Configuration : IPluginConfiguration
     public string LmStudioEndpoint { get; set; } = "http://localhost:1234";
     public string LmStudioModel { get; set; } = string.Empty;
     public string LmStudioApiKey { get; set; } = string.Empty;
+    public float LmStudioTemperature { get; set; } = 0.2f;
 
     // Glossary
     public bool AutoUpdateGlossary { get; set; } = true;

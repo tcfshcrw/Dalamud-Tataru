@@ -234,6 +234,15 @@ public class ConfigWindow : Window
             ImGui.TextDisabled("一般情況下 LM Studio 本地伺服器無需填寫 API Key。");
             ImGui.Spacing();
 
+            var lmTemp = config.LmStudioTemperature;
+            if (ImGui.SliderFloat("模型採樣溫度 (Temperature)", ref lmTemp, 0.0f, 1.0f, "%.2f"))
+            {
+                config.LmStudioTemperature = Math.Clamp(lmTemp, 0.0f, 1.0f);
+                config.Save();
+            }
+            ImGui.TextDisabled("控制輸出隨機度（預設 0.20）。若模型容易胡言亂語或過度腦補，建議調低至 0.00 ~ 0.10（最保守精準）。");
+            ImGui.Spacing();
+
             ImGui.TextColored(new Vector4(1.0f, 0.8f, 0.2f, 1.0f), "提示：請在 LM Studio 的「Local Server」頁面點擊「Start Server」啟動本地 API。");
         }
         else if (config.PrimaryEngine == TranslationEngine.Youdao)
