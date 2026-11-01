@@ -11,9 +11,32 @@
 - **極致精準的對話攔截**：透過 Dalamud 記憶體直接抓取遊戲 UI 文字（`AddonTalk` 主線支線對話、`TalkSubtitle` 過場 CG 字幕、`AddonBattleTalk` 副本首領喊話），零延遲且絕不漏字，再也不用依賴脆弱的 OCR 或外部指針掃描。
 - **Tataru 繁簡專有名詞辭典整合**：內建 Tataru 原版 `jp-ch-name.json` 與 `after-translation-*.json` 譯後名詞校正，NPC 姓名與艾歐澤亞專有名詞精準對齊官方中文在地化。
 - **Gemini AI 智能翻譯**：預設採用最新 `gemini-3.8-flash`（並支援一鍵從 Google API 同步最新模型清單），翻譯語氣自然流暢、反應迅速，且具備本地快取機制（重複對話秒出，省 API 額度）。
-- **輕量化 ImGui 字幕懸浮窗**：
-  - 支援說話者名稱顯示、譯文與原文（日文）即時對照。
-  - 支援滑鼠穿透（Click-Through）、自訂字體與透明度、對話結束自動淡出隱藏。
+- **雙模式自由切換**：
+  - **沉浸式原生對話框覆蓋模式 (Replace Mode)**：保留遊戲原生對話泡泡底圖與跳動金箭頭，直接在原對話框內覆蓋流暢中文譯文，宛如官方繁中版體驗。
+  - **輕量化 ImGui 字幕懸浮窗**：獨立自訂懸浮視窗，支援說話者名稱顯示、中日雙語即時對照、滑鼠穿透（Click-Through）、自訂字體與透明度、對話結束自動淡出隱藏。
+
+---
+
+## 沉浸式原生對話框覆蓋模式 (Native Bubble Overlay)
+
+<div align="center">
+  <img src="image/OverlayToOriginalTextBubble.png" width="480" alt="原生對話框覆蓋模式效果展示" />
+  <p><em>▲ 保留原版對話框底圖與跳動金箭頭，無縫覆蓋為流暢中文譯文</em></p>
+</div>
+
+### 模式特色
+- **極致原生的沉浸體驗**：
+  - **方案 B（保留遊戲原生泡泡底圖）**：精準隱藏原版日文文字節點，**完整保留遊戲原生繪製的羊皮紙對話框底圖與翻頁金色箭頭游標**，並在原框內以深色中文字體直接覆蓋渲染，視覺體驗完全無縫（如上圖所示）。
+  - **方案 A（仿原版羊皮紙風格）**：高仿 FFXIV 羊皮紙底色與古典深棕外框，支援自由任意拉伸縮放視窗尺寸，適合長篇巨幅對話或雙語同時展示。
+- **自動對齊與尺寸動態同步**：
+  - 視窗可自動鎖定遊戲原生 NPC 對話框的螢幕座標，並 100% 動態貼合原版對話框實際尺寸（包含 HUD 縮放倍率）。
+  - 支援 X / Y 座標與寬高尺寸的像素級微調偏移。
+  - 設定視窗開啟時，覆蓋視窗會常駐顯示並允許直接以滑鼠拖曳擺放或拉伸邊框，設定值自動永久記憶。
+- **彈性雙語對照設定**：
+  - 支援「純中文譯文」模式（乾淨簡潔、防長句溢出）或「中日雙語對照」模式。
+  - 支援獨立微調日文原文縮放比例（預設 0.75 倍），對照清晰又不搶版面。
+- **一鍵快速切換**：
+  - 遊戲聊天框輸入 `/tataru replace`（或 `/tataru replace on` / `off`）即可隨時在「獨立字幕視窗」與「原生對話框覆蓋」之間自由切換。
 
 ---
 
@@ -33,7 +56,8 @@ Dalumud-Tataru/
 │   └── GlossaryManager.cs          # 專有名詞讀取與前後置文本校正服務
 ├── Windows/
 │   ├── ConfigWindow.cs             # 插件設定介面 (API Key、模型選擇、連線測試)
-│   └── SubtitleOverlayWindow.cs    # ImGui 原生字幕懸浮視窗
+│   ├── SubtitleOverlayWindow.cs    # ImGui 原生字幕懸浮視窗
+│   └── DialogueReplaceOverlayWindow.cs # 原生對話框覆蓋視窗 (羊皮紙/原生泡泡模式)
 ├── Configuration.cs                # 插件設定資料結構與持久化
 ├── Plugin.cs                       # Dalamud 插件主入口
 ├── DalamudTataru.csproj            # 專案建置檔 (基於 Dalamud.NET.Sdk)
@@ -77,7 +101,7 @@ Dalumud-Tataru/
 | :--- | :--- |
 | `/tataru` 或 `/tataru config` | 開啟 / 關閉設定視窗 |
 | `/tataru toggle` | 開啟 / 關閉字幕視窗（可用於手動調整視窗位置） |
-| `/tataru replace` | 開關原生對話框覆蓋模式（隱藏原版泡泡並雙語顯示，支援 `on`/`off`） |
+| `/tataru replace` | 開關原生對話框覆蓋模式（直接在原生對話框覆蓋中文譯文，支援 `on`/`off`） |
 | `/tataru gemini on` | 切換主翻譯引擎為 Gemini |
 | `/tataru gemini off` | 切換主翻譯引擎為有道 (Youdao) |
 | `/tataru LMS` | 開關或切換主翻譯引擎為 LM Studio 本地模型（支援 `/tataru LMS on` / `/tataru LMS off`） |
