@@ -134,7 +134,8 @@ public class SubtitleOverlayWindow : Window
         {
             var scale = Math.Clamp(config.FontScale, 0.5f, 3.0f);
             ImGui.SetWindowFontScale(scale);
-            ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 25) / scale);
+            float wrapPos = Math.Max(100f, ImGui.GetWindowWidth() - 35f);
+            ImGui.PushTextWrapPos(wrapPos);
 
             // When config is open and there is no active in-game dialogue, show an interactive preview
             if (IsConfigOpen && (!isDialogueActive || currentEntry == null))
@@ -152,14 +153,14 @@ public class SubtitleOverlayWindow : Window
 
                     ImGui.PopTextWrapPos();
                     ImGui.SetWindowFontScale(origScale);
-                    ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 25) / origScale);
+                    ImGui.PushTextWrapPos(wrapPos);
 
                     ImGui.Spacing();
                     ImGui.TextColored(config.OriginalTextColor, "冒険者さん、設定ウィンドウが開いていまっす！");
 
                     ImGui.PopTextWrapPos();
                     ImGui.SetWindowFontScale(scale);
-                    ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 25) / scale);
+                    ImGui.PushTextWrapPos(wrapPos);
                 }
 
                 ImGui.PopTextWrapPos();
@@ -212,14 +213,14 @@ public class SubtitleOverlayWindow : Window
 
                 ImGui.PopTextWrapPos();
                 ImGui.SetWindowFontScale(origScale);
-                ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 25) / origScale);
+                ImGui.PushTextWrapPos(wrapPos);
 
                 ImGui.Spacing();
                 ImGui.TextColored(config.OriginalTextColor, currentEntry.OriginalText);
 
                 ImGui.PopTextWrapPos();
                 ImGui.SetWindowFontScale(scale);
-                ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 25) / scale);
+                ImGui.PushTextWrapPos(wrapPos);
             }
 
             ImGui.PopTextWrapPos();

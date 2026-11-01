@@ -162,7 +162,8 @@ public class DialogueReplaceOverlayWindow : Window
             bool useDarkText = config.ReplaceUseNativeBubble || config.ReplaceUseParchmentTheme;
             var scale = Math.Clamp(config.ReplaceFontScale, 0.5f, 3.0f);
             ImGui.SetWindowFontScale(scale);
-            ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 30) / scale);
+            float wrapPos = Math.Max(100f, ImGui.GetWindowWidth() - 40f);
+            ImGui.PushTextWrapPos(wrapPos);
 
             // 方案 A：Tataru 仿原版羊皮紙風格繪製底圖與邊框
             if (config.ReplaceUseParchmentTheme && !config.ReplaceUseNativeBubble)
@@ -201,7 +202,7 @@ public class DialogueReplaceOverlayWindow : Window
 
                     ImGui.PopTextWrapPos();
                     ImGui.SetWindowFontScale(origScale);
-                    ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 30) / origScale);
+                    ImGui.PushTextWrapPos(wrapPos);
 
                     if (!config.ReplaceUseNativeBubble)
                     {
@@ -211,7 +212,7 @@ public class DialogueReplaceOverlayWindow : Window
 
                     ImGui.PopTextWrapPos();
                     ImGui.SetWindowFontScale(scale);
-                    ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 30) / scale);
+                    ImGui.PushTextWrapPos(wrapPos);
                 }
 
                 if (config.ReplaceUseParchmentTheme && !config.ReplaceUseNativeBubble)
@@ -251,7 +252,7 @@ public class DialogueReplaceOverlayWindow : Window
 
                 ImGui.PopTextWrapPos();
                 ImGui.SetWindowFontScale(origScale);
-                ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 30) / origScale);
+                ImGui.PushTextWrapPos(wrapPos);
 
                 if (!config.ReplaceUseNativeBubble)
                 {
@@ -261,7 +262,7 @@ public class DialogueReplaceOverlayWindow : Window
 
                 ImGui.PopTextWrapPos();
                 ImGui.SetWindowFontScale(scale);
-                ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 30) / scale);
+                ImGui.PushTextWrapPos(wrapPos);
             }
 
             // 4. Golden prompt arrow cursor for Scheme A
