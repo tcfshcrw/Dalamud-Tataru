@@ -5,7 +5,7 @@
 
 ---
 
-## ✨ 核心特色
+## 核心特色
 
 - **純原生遊戲內運行**：直接作為 Dalamud Plugin 運行於遊戲內部，**不需要開啟任何外部 exe 程式或 Electron 視窗**。
 - **極致精準的對話攔截**：透過 Dalamud 記憶體直接抓取遊戲 UI 文字（`AddonTalk` 主線支線對話、`TalkSubtitle` 過場 CG 字幕、`AddonBattleTalk` 副本首領喊話），零延遲且絕不漏字，再也不用依賴脆弱的 OCR 或外部指針掃描。
@@ -17,7 +17,7 @@
 
 ---
 
-## 🛠️ 專案目錄結構
+## 專案目錄結構
 
 ```
 Dalumud-Tataru/
@@ -42,7 +42,7 @@ Dalumud-Tataru/
 
 ---
 
-## 📦 安裝方式 (Dalamud 自訂插件庫)
+## 安裝方式 (Dalamud 自訂插件庫)
 
 1. 在遊戲中輸入 `/xlsettings` 開啟 Dalamud 設定視窗。
 2. 切換至 **「實驗性功能 (Experimental)」** 分頁。
@@ -54,7 +54,7 @@ Dalumud-Tataru/
 
 ---
 
-## 🚀 快速上手
+## 快速上手
 
 ### 1. 取得免費的 Gemini API Key
 1. 前往 [Google AI Studio](https://aistudio.google.com/)。
@@ -71,16 +71,19 @@ Dalumud-Tataru/
 
 ---
 
-## ⌨️ 遊戲內指令
+## 遊戲內指令
 
 | 指令 | 說明 |
 | :--- | :--- |
 | `/tataru` 或 `/tataru config` | 開啟 / 關閉設定視窗 |
 | `/tataru toggle` | 開啟 / 關閉字幕視窗（可用於手動調整視窗位置） |
+| `/tataru gemini on` | 切換主翻譯引擎為 Gemini |
+| `/tataru gemini off` | 切換主翻譯引擎為有道 (Youdao) |
+| `/tataru gemini` | 在 Gemini 與有道翻譯之間切換 |
 
 ---
 
-## 📝 致敬與感謝
+## 致敬與感謝
 
 - 感謝 [winw1010/tataru-assistant](https://github.com/winw1010/tataru-assistant) 團隊為 FF14 中文社群長期整理的專有名詞庫與譯名對照表。
 - 感謝 **Dalamud** 開發團隊提供優秀的 FFXIV 插件生態。
