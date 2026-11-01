@@ -168,7 +168,8 @@ public class DialogueReplaceOverlayWindow : Window
             bool useDarkText = config.ReplaceUseNativeBubble || config.ReplaceUseParchmentTheme;
             var scale = Math.Clamp(config.ReplaceFontScale, 0.5f, 3.0f);
             ImGui.SetWindowFontScale(scale);
-            float wrapPos = Math.Max(100f, ImGui.GetWindowWidth() - 40f);
+            // 預留 70px 邊距：扣除泡泡右側弧形邊框與原版翻頁金箭頭 (約位於右側 30~50px 處)，確保文字絕對不壓到金箭頭
+            float wrapPos = Math.Max(100f, ImGui.GetWindowWidth() - 70f);
             ImGui.PushTextWrapPos(wrapPos);
 
             // 方案 A：Tataru 仿原版羊皮紙風格繪製底圖與邊框
