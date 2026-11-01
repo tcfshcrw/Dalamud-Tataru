@@ -53,40 +53,7 @@ public unsafe class DialogueWatcher : IDisposable
                 var talkAddon = (AddonTalk*)talkPtr.Address;
                 if (talkAddon != null)
                 {
-                    if (config.ReplaceGameTalkAddon)
-                    {
-                        if (config.ReplaceUseNativeBubble)
-                        {
-                            // 方案 B：保留遊戲原生泡泡框底圖，僅隱藏遊戲原生文字
-                            if (isTalkAlphaZeroed)
-                            {
-                                talkAddon->AtkUnitBase.Alpha = 255;
-                                isTalkAlphaZeroed = false;
-                            }
-
-                            if (talkAddon->AtkTextNode228 != null)
-                            {
-                                talkAddon->AtkTextNode228->AtkResNode.ToggleVisibility(false);
-                                isTalkTextNodeHidden = true;
-                            }
-                        }
-                        else
-                        {
-                            // 方案 A 或深色半透明：隱藏遊戲原生泡泡框，由 Tataru 自行繪製
-                            if (talkAddon->AtkUnitBase.Alpha != 0)
-                            {
-                                talkAddon->AtkUnitBase.Alpha = 0;
-                                isTalkAlphaZeroed = true;
-                            }
-
-                            if (isTalkTextNodeHidden && talkAddon->AtkTextNode228 != null)
-                            {
-                                talkAddon->AtkTextNode228->AtkResNode.ToggleVisibility(true);
-                                isTalkTextNodeHidden = false;
-                            }
-                        }
-                    }
-                    else
+                    if (!config.ReplaceGameTalkAddon)
                     {
                         if (isTalkAlphaZeroed)
                         {
@@ -112,38 +79,142 @@ public unsafe class DialogueWatcher : IDisposable
 
                             if (config.ReplaceGameTalkAddon)
                             {
-                                float width = 600f;
-                                float height = 145f;
+                                // 1. 先透過遊戲原生引擎 API 讀取精確螢幕邊界，再隱藏原生文字節點
+                                FFXIVClientStructs.FFXIV.Common.Math.Bounds rootBounds = default;
+                                FFXIVClientStructs.FFXIV.Common.Math.Bounds winBounds = default;
+                                FFXIVClientStructs.FFXIV.Common.Math.Bounds textBounds = default;
 
-                                // 優先精確抓取遊戲原生對話文字節點 AtkTextNode228 的邊界（不額外乘以 Scale，數值已在當前 UI 畫布像素座標系）
-                                if (talkAddon->AtkTextNode228 != null && talkAddon->AtkTextNode228->AtkResNode.Width > 100 && talkAddon->AtkTextNode228->AtkResNode.Width < 850)
+                                talkAddon->AtkUnitBase.GetRootBounds(&rootBounds);
+                                talkAddon->AtkUnitBase.GetWindowBounds(&winBounds);
+                                if (talkAddon->AtkTextNode228 != null)
                                 {
-                                    width = talkAddon->AtkTextNode228->AtkResNode.Width + 60f;
-                                    height = Math.Max(140f, talkAddon->AtkTextNode228->AtkResNode.Height + 50f);
-                                }
-                                else if (talkAddon->AtkTextNode228 != null && talkAddon->AtkTextNode228->AtkResNode.ParentNode != null &&
-                                         talkAddon->AtkTextNode228->AtkResNode.ParentNode->Width > 200 && talkAddon->AtkTextNode228->AtkResNode.ParentNode->Width < 850)
-                                {
-                                    width = talkAddon->AtkTextNode228->AtkResNode.ParentNode->Width;
-                                    height = Math.Max(140f, (float)talkAddon->AtkTextNode228->AtkResNode.ParentNode->Height);
-                                }
-                                else if (talkAddon->AtkUnitBase.WindowNode != null && talkAddon->AtkUnitBase.WindowNode->Width > 200 && talkAddon->AtkUnitBase.WindowNode->Width < 850)
-                                {
-                                    width = talkAddon->AtkUnitBase.WindowNode->Width;
-                                    height = talkAddon->AtkUnitBase.WindowNode->Height;
-                                }
-                                else if (talkAddon->AtkUnitBase.RootNode != null && talkAddon->AtkUnitBase.RootNode->Width > 200 && talkAddon->AtkUnitBase.RootNode->Width < 850)
-                                {
-                                    width = talkAddon->AtkUnitBase.RootNode->Width;
-                                    height = talkAddon->AtkUnitBase.RootNode->Height;
+                                    talkAddon->AtkTextNode228->AtkResNode.GetBounds(&textBounds);
                                 }
 
-                                // 嚴格將泡泡框尺寸約束在遊戲泡泡合理範圍內（480px ~ 720px），徹底杜絕 900+ 或 1920 滿版情況
-                                width = Math.Clamp(width, 480f, 720f);
-                                height = Math.Clamp(height, 120f, 260f);
+                                // 2. 切換原生泡泡/文字隱藏狀態
+                                if (config.ReplaceUseNativeBubble)
+                                {
+                                    // 方案 B：保留遊戲原生泡泡框底圖，僅隱藏遊戲原生文字
+                                    if (isTalkAlphaZeroed)
+                                    {
+                                        talkAddon->AtkUnitBase.Alpha = 255;
+                                        isTalkAlphaZeroed = false;
+                                    }
 
-                                TalkAddonPosition = new Vector2(talkAddon->AtkUnitBase.X, talkAddon->AtkUnitBase.Y);
-                                TalkAddonSize = new Vector2(width, height);
+                                    if (talkAddon->AtkTextNode228 != null)
+                                    {
+                                        talkAddon->AtkTextNode228->AtkResNode.ToggleVisibility(false);
+                                        isTalkTextNodeHidden = true;
+                                    }
+                                }
+                                else
+                                {
+                                    // 方案 A 或深色半透明：隱藏遊戲原生泡泡框，由 Tataru 自行繪製
+                                    if (talkAddon->AtkUnitBase.Alpha != 0)
+                                    {
+                                        talkAddon->AtkUnitBase.Alpha = 0;
+                                        isTalkAlphaZeroed = true;
+                                    }
+
+                                    if (isTalkTextNodeHidden && talkAddon->AtkTextNode228 != null)
+                                    {
+                                        talkAddon->AtkTextNode228->AtkResNode.ToggleVisibility(true);
+                                        isTalkTextNodeHidden = false;
+                                    }
+                                }
+
+                                // 3. 自動計算真實螢幕座標與寬高（支援 1080p / 2K / 4K 高解析度 UI 與任意 HUD 縮放）
+                                float scale = talkAddon->AtkUnitBase.Scale > 0 ? talkAddon->AtkUnitBase.Scale : 1.0f;
+                                var bBounds = rootBounds.Width > 100 && rootBounds.Height > 30 ? rootBounds : winBounds;
+
+                                float rawRootW = talkAddon->AtkUnitBase.RootNode != null && talkAddon->AtkUnitBase.RootNode->Width > 100
+                                    ? (float)talkAddon->AtkUnitBase.RootNode->Width
+                                    : 688f;
+                                float rawRootH = talkAddon->AtkUnitBase.RootNode != null && talkAddon->AtkUnitBase.RootNode->Height > 30
+                                    ? (float)talkAddon->AtkUnitBase.RootNode->Height
+                                    : 165f;
+
+                                float bubbleW = bBounds.Width > 100 ? bBounds.Width : (rawRootW >= 1000f ? rawRootW : rawRootW * scale);
+                                float bubbleH = bBounds.Height > 30 ? bBounds.Height : (rawRootH >= 240f ? rawRootH : rawRootH * scale);
+
+                                // 在 4K 高解析度 UI 下，ULD 節點尺寸已為 2x (例如 RootNode=1376x330)，避免被重複乘上 Scale 導致變成 1927px
+                                if (rawRootW >= 1000f && bubbleW > rawRootW * 1.05f)
+                                {
+                                    bubbleW = rawRootW;
+                                    bubbleH = rawRootH;
+                                }
+
+                                float effectiveScaleX = rawRootW > 0 ? (bubbleW / rawRootW) : 1.0f;
+                                float effectiveScaleY = rawRootH > 0 ? (bubbleH / rawRootH) : 1.0f;
+
+                                Vector2 bubblePos = (bBounds.Width > 100 && (bBounds.Pos1.X != 0 || bBounds.Pos1.Y != 0))
+                                    ? new Vector2(bBounds.Pos1.X, bBounds.Pos1.Y)
+                                    : new Vector2(talkAddon->AtkUnitBase.X, talkAddon->AtkUnitBase.Y);
+
+                                float textW = bubbleW * 0.82f;
+                                float textH = bubbleH * 0.67f;
+                                float textX = bubblePos.X + bubbleW * 0.09f;
+                                float textY = bubblePos.Y + bubbleH * 0.25f;
+
+                                if (talkAddon->AtkTextNode228 != null)
+                                {
+                                    float rawTextW = talkAddon->AtkTextNode228->AtkResNode.Width;
+                                    float rawTextH = talkAddon->AtkTextNode228->AtkResNode.Height;
+
+                                    if (textBounds.Width > 100 && textBounds.Height > 20)
+                                    {
+                                        textW = textBounds.Width;
+                                        textH = textBounds.Height;
+                                    }
+                                    else if (rawTextW > 100 && rawTextH > 20)
+                                    {
+                                        textW = rawTextW * effectiveScaleX;
+                                        textH = rawTextH * effectiveScaleY;
+                                    }
+
+                                    // 在 4K 高解析度 UI 下，AtkTextNode228 節點已為 2x 尺寸 (1128x220)，避免重複乘上 Scale 變成 1579px 超出泡泡框
+                                    if (rawTextW >= 900f && textW > rawTextW * 1.05f)
+                                    {
+                                        textW = rawTextW;
+                                        textH = rawTextH;
+                                    }
+
+                                    float localX = 0f;
+                                    float localY = 0f;
+                                    var cur = &talkAddon->AtkTextNode228->AtkResNode;
+                                    int guard = 0;
+                                    while (cur != null && cur != talkAddon->AtkUnitBase.RootNode && guard++ < 8)
+                                    {
+                                        localX += cur->X;
+                                        localY += cur->Y;
+                                        cur = cur->ParentNode;
+                                    }
+
+                                    if (textBounds.Width > 100 && (textBounds.Pos1.X > 0 || textBounds.Pos1.Y > 0) &&
+                                        (bBounds.Width <= 100 || (textBounds.Pos1.X >= bBounds.Pos1.X - 10f && textBounds.Pos1.X < bBounds.Pos2.X)))
+                                    {
+                                        textX = textBounds.Pos1.X;
+                                        textY = textBounds.Pos1.Y;
+                                    }
+                                    else
+                                    {
+                                        textX = bubblePos.X + localX * effectiveScaleX;
+                                        textY = bubblePos.Y + localY * effectiveScaleY;
+                                    }
+                                }
+
+                                if (config.ReplaceUseNativeBubble)
+                                {
+                                    // 方案 B：精準對齊原生泡泡內的文字節點 (AtkTextNode228)，扣除 ImGui 8px 預設內距使文字起點與換行邊界完全貼合原生對話框
+                                    TalkAddonPosition = new Vector2(textX - 8f, textY - 6f);
+                                    TalkAddonSize = new Vector2(textW + 16f, Math.Max(textH + 24f, 140f));
+                                }
+                                else
+                                {
+                                    // 方案 A 或深色半透明：對齊整個對話泡泡外框
+                                    TalkAddonPosition = bubblePos;
+                                    TalkAddonSize = new Vector2(bubbleW, Math.Max(bubbleH, 150f));
+                                }
                             }
                             else
                             {

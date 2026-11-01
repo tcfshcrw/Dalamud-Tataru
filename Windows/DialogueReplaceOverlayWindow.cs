@@ -16,6 +16,7 @@ public class DialogueReplaceOverlayWindow : Window
     private DialogueEntry? currentEntry;
     private bool isDialogueActive = false;
     private bool needsReset = false;
+    private bool needsApplyBounds = false;
 
     public bool IsConfigOpen { get; set; } = false;
 
@@ -28,8 +29,7 @@ public class DialogueReplaceOverlayWindow : Window
     {
         Position = pos;
         Size = size;
-        PositionCondition = ImGuiCond.Always;
-        SizeCondition = ImGuiCond.Always;
+        needsApplyBounds = true;
 
         config.ReplaceOverlayPosition = pos;
         config.ReplaceOverlaySize = size;
@@ -53,7 +53,7 @@ public class DialogueReplaceOverlayWindow : Window
         SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(200, 50),
-            MaximumSize = new Vector2(2560, 1440)
+            MaximumSize = new Vector2(3840, 2160)
         };
 
         Size = new Vector2(650, 180);
@@ -101,6 +101,16 @@ public class DialogueReplaceOverlayWindow : Window
             return;
         }
 
+        if (needsApplyBounds)
+        {
+            Position = config.ReplaceOverlayPosition;
+            Size = config.ReplaceOverlaySize;
+            PositionCondition = ImGuiCond.Always;
+            SizeCondition = ImGuiCond.Always;
+            needsApplyBounds = false;
+            return;
+        }
+
         if (IsConfigOpen)
         {
             // Title bar visible, freely movable and resizable, mouse clickable
@@ -109,8 +119,6 @@ public class DialogueReplaceOverlayWindow : Window
             {
                 Flags |= ImGuiWindowFlags.NoBackground;
             }
-            PositionCondition = ImGuiCond.FirstUseEver;
-            SizeCondition = ImGuiCond.FirstUseEver;
         }
         else
         {
@@ -125,33 +133,33 @@ public class DialogueReplaceOverlayWindow : Window
             {
                 Flags |= ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize;
             }
+        }
 
-            if (config.ReplaceFollowTalkAddonPosition && dialogueWatcher.TalkAddonPosition.HasValue)
-            {
-                Position = dialogueWatcher.TalkAddonPosition.Value + config.ReplacePositionOffset;
-                PositionCondition = ImGuiCond.Always;
-            }
-            else
-            {
-                PositionCondition = ImGuiCond.FirstUseEver;
-            }
+        if (config.ReplaceFollowTalkAddonPosition && dialogueWatcher.TalkAddonPosition.HasValue)
+        {
+            Position = dialogueWatcher.TalkAddonPosition.Value + config.ReplacePositionOffset;
+            PositionCondition = ImGuiCond.Always;
+        }
+        else
+        {
+            PositionCondition = ImGuiCond.FirstUseEver;
+        }
 
-            if (config.ReplaceAutoSyncSize && dialogueWatcher.TalkAddonSize.HasValue)
-            {
-                Size = dialogueWatcher.TalkAddonSize.Value + config.ReplaceSizeOffset;
-                SizeCondition = ImGuiCond.Always;
-            }
-            else
-            {
-                SizeCondition = ImGuiCond.FirstUseEver;
-            }
+        if (config.ReplaceAutoSyncSize && dialogueWatcher.TalkAddonSize.HasValue)
+        {
+            Size = dialogueWatcher.TalkAddonSize.Value + config.ReplaceSizeOffset;
+            SizeCondition = ImGuiCond.Always;
+        }
+        else
+        {
+            SizeCondition = ImGuiCond.FirstUseEver;
+        }
 
-            // 對話框關閉即立刻關閉視窗
-            if (!isDialogueActive)
-            {
-                IsOpen = false;
-                return;
-            }
+        // 對話框關閉且未開啟設定視窗時，即刻關閉視窗
+        if (!IsConfigOpen && !isDialogueActive)
+        {
+            IsOpen = false;
+            return;
         }
     }
 
@@ -168,8 +176,10 @@ public class DialogueReplaceOverlayWindow : Window
             bool useDarkText = config.ReplaceUseNativeBubble || config.ReplaceUseParchmentTheme;
             var scale = Math.Clamp(config.ReplaceFontScale, 0.5f, 3.0f);
             ImGui.SetWindowFontScale(scale);
-            // 預留 70px 邊距：扣除泡泡右側弧形邊框與原版翻頁金箭頭 (約位於右側 30~50px 處)，確保文字絕對不壓到金箭頭
-            float wrapPos = Math.Max(100f, ImGui.GetWindowWidth() - 70f);
+
+            // 方案 B 已直接對齊遊戲原生文字框 AtkTextNode228 (其右界本身已在翻頁金箭頭左側)，僅需保留 28px 安全邊距
+            float rightMargin = config.ReplaceUseNativeBubble ? 28f : 32f;
+            float wrapPos = Math.Max(100f, ImGui.GetWindowWidth() - rightMargin);
             ImGui.PushTextWrapPos(wrapPos);
 
             // 方案 A：Tataru 仿原版羊皮紙風格繪製底圖與邊框
