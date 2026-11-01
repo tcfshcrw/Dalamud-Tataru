@@ -58,7 +58,7 @@ public class Plugin : IDalamudPlugin
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "開啟 Tataru 設定視窗 (/tataru config) 或開關字幕視窗 (/tataru toggle)"
+            HelpMessage = "開啟設定 (/tataru), 開關字幕 (/tataru toggle), 或切換引擎 (/tataru gemini on|off)"
         });
 
         PluginInterface.UiBuilder.Draw += DrawUI;
@@ -97,15 +97,79 @@ public class Plugin : IDalamudPlugin
 
     private void OnCommand(string command, string args)
     {
-        var arg = args.Trim().ToLowerInvariant();
-        if (arg == "toggle")
-        {
-            overlayWindow.IsOpen = !overlayWindow.IsOpen;
-        }
-        else
+        var trimmed = args.Trim();
+        var parts = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (parts.Length == 0)
         {
             configWindow.IsOpen = !configWindow.IsOpen;
+            return;
         }
+
+        var subCommand = parts[0].ToLowerInvariant();
+
+        switch (subCommand)
+        {
+            case "toggle":
+                overlayWindow.IsOpen = !overlayWindow.IsOpen;
+                break;
+
+            case "config" or "settings" or "setting":
+                configWindow.IsOpen = !configWindow.IsOpen;
+                break;
+
+            case "gemini":
+                if (parts.Length > 1)
+                {
+                    var state = parts[1].ToLowerInvariant();
+                    if (state is "on" or "1" or "true")
+                    {
+                        SwitchEngine(TranslationEngine.Gemini, "Gemini");
+                        return;
+                    }
+                    if (state is "off" or "0" or "false")
+                    {
+                        SwitchEngine(TranslationEngine.Youdao, "有道 (Youdao)");
+                        return;
+                    }
+                }
+
+                // 若只有 /tataru gemini 未指定參數，則在 Gemini 與 有道 之間切換
+                if (Configuration.PrimaryEngine == TranslationEngine.Gemini)
+                {
+                    SwitchEngine(TranslationEngine.Youdao, "有道 (Youdao)");
+                }
+                else
+                {
+                    SwitchEngine(TranslationEngine.Gemini, "Gemini");
+                }
+                break;
+
+            case "youdao":
+                SwitchEngine(TranslationEngine.Youdao, "有道 (Youdao)");
+                break;
+
+            case "help":
+                ChatGui.Print("[Tataru] 指令說明：");
+                ChatGui.Print("  /tataru - 開啟或關閉設定視窗");
+                ChatGui.Print("  /tataru toggle - 開啟或關閉字幕懸浮窗");
+                ChatGui.Print("  /tataru gemini on - 切換翻譯引擎為 Gemini");
+                ChatGui.Print("  /tataru gemini off - 切換翻譯引擎為 有道 (Youdao)");
+                ChatGui.Print("  /tataru gemini - 在 Gemini 與 有道 之間快速切換");
+                break;
+
+            default:
+                configWindow.IsOpen = !configWindow.IsOpen;
+                break;
+        }
+    }
+
+    private void SwitchEngine(TranslationEngine engine, string engineName)
+    {
+        Configuration.PrimaryEngine = engine;
+        Configuration.Save();
+        translator.ClearCache();
+        ChatGui.Print($"[Tataru] 主翻譯引擎已切換為：{engineName}");
     }
 
     private void DrawUI()
