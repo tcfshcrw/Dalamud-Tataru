@@ -17,12 +17,15 @@ public class ConfigWindow : Window
     private readonly YoudaoTranslator youdao;
     private readonly GoogleTranslator google;
     private readonly SubtitleOverlayWindow overlayWindow;
+    private readonly GlossaryManager glossary;
 
     private bool showApiKey = false;
     private string testStatus = string.Empty;
     private bool isTesting = false;
     private bool isFetchingModels = false;
     private bool isFetchingLmModels = false;
+    private bool isUpdatingGlossary = false;
+    private string glossaryStatus = string.Empty;
 
     private string[] models = new[]
     {
@@ -36,7 +39,7 @@ public class ConfigWindow : Window
         "自訂模型 (Custom)"
     };
 
-    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow)
+    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, GlossaryManager glossary)
         : base("Tataru Native Translator 設定###TataruConfigWindow")
     {
         this.config = config;
@@ -45,6 +48,7 @@ public class ConfigWindow : Window
         this.youdao = youdao;
         this.google = google;
         this.overlayWindow = overlayWindow;
+        this.glossary = glossary;
 
         Size = new Vector2(560, 620);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -348,6 +352,33 @@ public class ConfigWindow : Window
             config.TranslateBattleTalk = battle;
             config.Save();
         }
+
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        // Glossary & Dictionaries
+        ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "Tataru 專有名詞辭典與文本庫");
+        ImGui.TextDisabled($"目前已載入：{glossary.NameMapCount} 筆 NPC/專有名詞對照，繁中校正 {glossary.PostReplaceChtCount} 筆，簡中校正 {glossary.PostReplaceChsCount} 筆。");
+        ImGui.Spacing();
+
+        var autoUpdate = config.AutoUpdateGlossary;
+        if (ImGui.Checkbox("啟動遊戲/插件時自動從 Tataru-Assistant 檢查並更新文本庫", ref autoUpdate))
+        {
+            config.AutoUpdateGlossary = autoUpdate;
+            config.Save();
+        }
+
+        if (ImGui.Button(isUpdatingGlossary ? "文本更新中..." : "立即從 Tataru-Assistant 雲端更新文本庫", new Vector2(-1, 32)) && !isUpdatingGlossary)
+        {
+            UpdateGlossaryFromCloud();
+        }
+
+        if (!string.IsNullOrEmpty(glossaryStatus))
+        {
+            ImGui.Spacing();
+            ImGui.TextWrapped(glossaryStatus);
+        }
     }
 
     private void DrawOverlaySettings()
@@ -442,6 +473,32 @@ public class ConfigWindow : Window
         ImGui.Text("指令：");
         ImGui.BulletText("/tataru 或 /tataru config - 開啟設定視窗");
         ImGui.BulletText("/tataru toggle - 開關字幕懸浮視窗");
+        ImGui.BulletText("/tataru lms [on|off] - 開關或切換至 LM Studio 本地模型 (/tataru LMS)");
+        ImGui.BulletText("/tataru gemini [on|off] - 開關或切換至 Gemini AI");
+        ImGui.BulletText("/tataru update - 從 Tataru-Assistant 雲端立即更新最新文本庫");
+    }
+
+    private void UpdateGlossaryFromCloud()
+    {
+        isUpdatingGlossary = true;
+        glossaryStatus = "正在從 Tataru-Assistant (winw1010/tataru-assistant-text) 下載最新文本...";
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                var (success, msg) = await glossary.UpdateGlossariesFromTataruAsync();
+                glossaryStatus = success ? $"✔ {msg}" : $"❌ 更新失敗：{msg}";
+            }
+            catch (Exception ex)
+            {
+                glossaryStatus = $"❌ 更新失敗：{ex.Message}";
+            }
+            finally
+            {
+                isUpdatingGlossary = false;
+            }
+        });
     }
 
     private void RefreshModelsFromApi()

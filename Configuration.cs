@@ -31,6 +31,9 @@ public class Configuration : IPluginConfiguration
     public string LmStudioModel { get; set; } = string.Empty;
     public string LmStudioApiKey { get; set; } = string.Empty;
 
+    // Glossary
+    public bool AutoUpdateGlossary { get; set; } = false;
+
     // Hook Toggles
     public bool TranslateTalk { get; set; } = true;
     public bool TranslateBattleTalk { get; set; } = true;

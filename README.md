@@ -79,7 +79,9 @@ Dalumud-Tataru/
 | `/tataru toggle` | 開啟 / 關閉字幕視窗（可用於手動調整視窗位置） |
 | `/tataru gemini on` | 切換主翻譯引擎為 Gemini |
 | `/tataru gemini off` | 切換主翻譯引擎為有道 (Youdao) |
+| `/tataru LMS` | 開關或切換主翻譯引擎為 LM Studio 本地模型（支援 `/tataru LMS on` / `/tataru LMS off`） |
 | `/tataru gemini` | 在 Gemini 與有道翻譯之間切換 |
+| `/tataru update` | 直接從 Tataru-Assistant 雲端更新最新專有名詞與譯後修飾文本庫 |
 
 ---
 

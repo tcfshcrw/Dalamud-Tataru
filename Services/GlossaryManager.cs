@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using Dalamud.Plugin.Services;
 using DalamudTataru.Models;
 
@@ -11,13 +13,19 @@ namespace DalamudTataru.Services;
 public class GlossaryManager
 {
     private readonly IPluginLog log;
+    private readonly string configDir;
     private readonly Dictionary<string, (string cht, string chs)> nameMap = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<(string target, string replacement)> postReplaceCht = new();
     private readonly List<(string target, string replacement)> postReplaceChs = new();
 
+    public int NameMapCount => nameMap.Count;
+    public int PostReplaceChtCount => postReplaceCht.Count;
+    public int PostReplaceChsCount => postReplaceChs.Count;
+
     public GlossaryManager(IPluginLog log, string pluginConfigDirectory)
     {
         this.log = log;
+        this.configDir = pluginConfigDirectory;
         LoadGlossaries(pluginConfigDirectory);
     }
 
@@ -25,14 +33,18 @@ public class GlossaryManager
     {
         try
         {
-            // Search order: Assembly Location / Data, Config Dir / Data, App Domain Base
+            nameMap.Clear();
+            postReplaceCht.Clear();
+            postReplaceChs.Clear();
+
+            // Search order: Config Dir / Data (user/updated), Assembly Location / Data (bundled), App Domain Base
             var baseDir = AppDomain.CurrentDomain.BaseDirectory;
             var assemblyDir = Path.GetDirectoryName(typeof(GlossaryManager).Assembly.Location) ?? string.Empty;
 
             var possiblePaths = new[]
             {
-                Path.Combine(assemblyDir, "Data"),
                 Path.Combine(configDir, "Data"),
+                Path.Combine(assemblyDir, "Data"),
                 Path.Combine(baseDir, "Data"),
                 "Data"
             };
@@ -145,5 +157,85 @@ public class GlossaryManager
         }
 
         return text;
+    }
+
+    public async Task<(bool success, string message)> UpdateGlossariesFromTataruAsync()
+    {
+        var targetDataDir = Path.Combine(configDir, "Data");
+        try
+        {
+            Directory.CreateDirectory(targetDataDir);
+        }
+        catch (Exception ex)
+        {
+            log.Error(ex, $"無法建立目錄：{targetDataDir}");
+            return (false, $"無法建立目錄：{ex.Message}");
+        }
+
+        var filesToDownload = new[]
+        {
+            "jp-ch-name.json",
+            "after-translation-cht.json",
+            "after-translation-chs.json"
+        };
+
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("TataruPlugin/1.0 (Dalamud)");
+
+        var downloadedFiles = new Dictionary<string, string>();
+
+        foreach (var file in filesToDownload)
+        {
+            string[] candidateUrls = new[]
+            {
+                $"https://raw.githubusercontent.com/winw1010/tataru-assistant-text/main/ch/{file}",
+                $"https://fastly.jsdelivr.net/gh/winw1010/tataru-assistant-text@main/ch/{file}"
+            };
+
+            string? content = null;
+            Exception? lastEx = null;
+
+            foreach (var url in candidateUrls)
+            {
+                try
+                {
+                    var response = await client.GetAsync(url);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var text = await response.Content.ReadAsStringAsync();
+                        if (!string.IsNullOrWhiteSpace(text) && text.TrimStart().StartsWith("["))
+                        {
+                            content = text;
+                            break;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lastEx = ex;
+                }
+            }
+
+            if (content == null)
+            {
+                var err = lastEx?.Message ?? "伺服器無回應或格式錯誤";
+                log.Error($"下載 {file} 失敗：{err}");
+                return (false, $"下載 {file} 失敗：{err}");
+            }
+
+            downloadedFiles[file] = content;
+        }
+
+        foreach (var kvp in downloadedFiles)
+        {
+            var filePath = Path.Combine(targetDataDir, kvp.Key);
+            await File.WriteAllTextAsync(filePath, kvp.Value);
+        }
+
+        LoadGlossaries(configDir);
+
+        var msg = $"Tataru 文本庫更新成功！已載入 {nameMap.Count} 筆專有名詞對照、繁中校正 {postReplaceCht.Count} 筆、簡中校正 {postReplaceChs.Count} 筆。";
+        log.Information(msg);
+        return (true, msg);
     }
 }

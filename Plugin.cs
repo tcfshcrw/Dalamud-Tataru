@@ -47,10 +47,29 @@ public class Plugin : IDalamudPlugin
         translator = new GeminiTranslator(Configuration, glossaryManager, youdaoTranslator, googleTranslator, lmStudioTranslator, PluginLog);
 
         overlayWindow = new SubtitleOverlayWindow(Configuration);
-        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow);
+        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, glossaryManager);
 
         WindowSystem.AddWindow(overlayWindow);
         WindowSystem.AddWindow(configWindow);
+
+        if (Configuration.AutoUpdateGlossary)
+        {
+            Task.Run(async () =>
+            {
+                try
+                {
+                    var (success, msg) = await glossaryManager.UpdateGlossariesFromTataruAsync();
+                    if (success)
+                    {
+                        PluginLog.Information(msg);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    PluginLog.Warning(ex, "啟動時自動更新 Tataru 文本庫失敗。");
+                }
+            });
+        }
 
         dialogueWatcher = new DialogueWatcher(Framework, GameGui, PluginLog, Configuration);
         dialogueWatcher.OnDialogueChanged += HandleDialogueChanged;
@@ -58,7 +77,7 @@ public class Plugin : IDalamudPlugin
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "開啟設定 (/tataru), 開關字幕 (/tataru toggle), 或切換引擎 (/tataru gemini on|off)"
+            HelpMessage = "開啟設定 (/tataru), 開關字幕 (/tataru toggle), 或切換引擎 (/tataru LMS / /tataru gemini)"
         });
 
         PluginInterface.UiBuilder.Draw += DrawUI;
@@ -145,17 +164,61 @@ public class Plugin : IDalamudPlugin
                 }
                 break;
 
+            case "lms" or "lmstudio":
+                if (parts.Length > 1)
+                {
+                    var state = parts[1].ToLowerInvariant();
+                    if (state is "on" or "1" or "true")
+                    {
+                        SwitchEngine(TranslationEngine.LmStudio, "LM Studio (本地模型)");
+                        return;
+                    }
+                    if (state is "off" or "0" or "false")
+                    {
+                        var fallback = string.IsNullOrWhiteSpace(Configuration.GeminiApiKey) ? TranslationEngine.Youdao : TranslationEngine.Gemini;
+                        var fallbackName = fallback == TranslationEngine.Gemini ? "Gemini" : "有道 (Youdao)";
+                        SwitchEngine(fallback, fallbackName);
+                        return;
+                    }
+                }
+
+                // 若只有 /tataru LMS 未指定參數，則在 LM Studio 與 雲端/備用引擎 (Gemini/有道) 之間切換開關
+                if (Configuration.PrimaryEngine == TranslationEngine.LmStudio)
+                {
+                    var fallback = string.IsNullOrWhiteSpace(Configuration.GeminiApiKey) ? TranslationEngine.Youdao : TranslationEngine.Gemini;
+                    var fallbackName = fallback == TranslationEngine.Gemini ? "Gemini" : "有道 (Youdao)";
+                    SwitchEngine(fallback, fallbackName);
+                }
+                else
+                {
+                    SwitchEngine(TranslationEngine.LmStudio, "LM Studio (本地模型)");
+                }
+                break;
+
             case "youdao":
                 SwitchEngine(TranslationEngine.Youdao, "有道 (Youdao)");
+                break;
+
+            case "google":
+                SwitchEngine(TranslationEngine.Google, "Google 翻譯");
+                break;
+
+            case "update" or "glossary":
+                ChatGui.Print("[Tataru] 正在從 Tataru-Assistant 雲端更新文本與專有名詞庫...");
+                Task.Run(async () =>
+                {
+                    var (success, msg) = await glossaryManager.UpdateGlossariesFromTataruAsync();
+                    ChatGui.Print($"[Tataru] {msg}");
+                });
                 break;
 
             case "help":
                 ChatGui.Print("[Tataru] 指令說明：");
                 ChatGui.Print("  /tataru - 開啟或關閉設定視窗");
                 ChatGui.Print("  /tataru toggle - 開啟或關閉字幕懸浮窗");
-                ChatGui.Print("  /tataru gemini on - 切換翻譯引擎為 Gemini");
-                ChatGui.Print("  /tataru gemini off - 切換翻譯引擎為 有道 (Youdao)");
-                ChatGui.Print("  /tataru gemini - 在 Gemini 與 有道 之間快速切換");
+                ChatGui.Print("  /tataru LMS [on|off] - 開關或切換主引擎為 LM Studio 本地模型");
+                ChatGui.Print("  /tataru gemini [on|off] - 開關或切換主引擎為 Gemini");
+                ChatGui.Print("  /tataru update - 從 Tataru-Assistant 雲端更新最新文本與專有名詞庫");
                 break;
 
             default:
