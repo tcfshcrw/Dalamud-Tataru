@@ -193,8 +193,23 @@ public class DialogueReplaceOverlayWindow : Window
                         : "【現代深色半透明模式】預覽中！";
 
                 ImGui.TextColored(textColor, $"冒險者大人，{modeDesc}\n對話結束時視窗將自動即刻消失。");
-                ImGui.Spacing();
-                ImGui.TextColored(origTextColor, "冒険者さん、ネイティブ会話置換プレビュー中でっす！");
+
+                if (config.ReplaceShowOriginalText)
+                {
+                    var origRatio = config.OriginalFontScaleRatio > 0.1f ? config.OriginalFontScaleRatio : 0.75f;
+                    var origScale = Math.Clamp(scale * origRatio, 0.2f, 3.0f);
+
+                    ImGui.PopTextWrapPos();
+                    ImGui.SetWindowFontScale(origScale);
+                    ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 30) / origScale);
+
+                    ImGui.Spacing();
+                    ImGui.TextColored(origTextColor, "冒険者さん、ネイティブ会話置換プレビュー中でっす！");
+
+                    ImGui.PopTextWrapPos();
+                    ImGui.SetWindowFontScale(scale);
+                    ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 30) / scale);
+                }
 
                 if (config.ReplaceUseParchmentTheme && !config.ReplaceUseNativeBubble)
                 {
@@ -226,10 +241,21 @@ public class DialogueReplaceOverlayWindow : Window
             }
 
             // 2. Original Japanese Text
-            if (!string.IsNullOrEmpty(currentEntry.OriginalText))
+            if (config.ReplaceShowOriginalText && !string.IsNullOrEmpty(currentEntry.OriginalText))
             {
+                var origRatio = config.OriginalFontScaleRatio > 0.1f ? config.OriginalFontScaleRatio : 0.75f;
+                var origScale = Math.Clamp(scale * origRatio, 0.2f, 3.0f);
+
+                ImGui.PopTextWrapPos();
+                ImGui.SetWindowFontScale(origScale);
+                ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 30) / origScale);
+
                 ImGui.Spacing();
                 ImGui.TextColored(origTextColor, currentEntry.OriginalText);
+
+                ImGui.PopTextWrapPos();
+                ImGui.SetWindowFontScale(scale);
+                ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 30) / scale);
             }
 
             // 4. Golden prompt arrow cursor for Scheme A

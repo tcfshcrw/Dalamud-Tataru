@@ -147,8 +147,19 @@ public class SubtitleOverlayWindow : Window
                 ImGui.TextColored(config.TextColor, "冒險者大人，【獨立字幕模式】預覽中！\n您可以拖曳移動位置或拉動邊框調整大小。\n關閉設定視窗後，視窗將自動開啟「滑鼠點擊穿透」。");
                 if (config.ShowOriginalText)
                 {
+                    var origRatio = config.OriginalFontScaleRatio > 0.1f ? config.OriginalFontScaleRatio : 0.75f;
+                    var origScale = Math.Clamp(scale * origRatio, 0.2f, 3.0f);
+
+                    ImGui.PopTextWrapPos();
+                    ImGui.SetWindowFontScale(origScale);
+                    ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 25) / origScale);
+
                     ImGui.Spacing();
                     ImGui.TextColored(config.OriginalTextColor, "冒険者さん、設定ウィンドウが開いていまっす！");
+
+                    ImGui.PopTextWrapPos();
+                    ImGui.SetWindowFontScale(scale);
+                    ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 25) / scale);
                 }
 
                 ImGui.PopTextWrapPos();
@@ -196,8 +207,19 @@ public class SubtitleOverlayWindow : Window
             // 3. Original Japanese Text
             if (config.ShowOriginalText && !string.IsNullOrEmpty(currentEntry.OriginalText))
             {
+                var origRatio = config.OriginalFontScaleRatio > 0.1f ? config.OriginalFontScaleRatio : 0.75f;
+                var origScale = Math.Clamp(scale * origRatio, 0.2f, 3.0f);
+
+                ImGui.PopTextWrapPos();
+                ImGui.SetWindowFontScale(origScale);
+                ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 25) / origScale);
+
                 ImGui.Spacing();
                 ImGui.TextColored(config.OriginalTextColor, currentEntry.OriginalText);
+
+                ImGui.PopTextWrapPos();
+                ImGui.SetWindowFontScale(scale);
+                ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 25) / scale);
             }
 
             ImGui.PopTextWrapPos();

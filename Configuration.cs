@@ -52,6 +52,8 @@ public class Configuration : IPluginConfiguration
     public Vector2 ReplacePositionOffset { get; set; } = Vector2.Zero;
     public Vector2 ReplaceSizeOffset { get; set; } = Vector2.Zero;
     public bool ShowOriginalText { get; set; } = false;
+    public bool ReplaceShowOriginalText { get; set; } = true;
+    public float OriginalFontScaleRatio { get; set; } = 0.75f;
     public bool ShowSpeaker { get; set; } = true;
     public float FontScale { get; set; } = 1.0f;
     public float WindowOpacity { get; set; } = 0.85f;

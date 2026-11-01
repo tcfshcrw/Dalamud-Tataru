@@ -438,6 +438,15 @@ public class ConfigWindow : Window
         }
         ImGui.Spacing();
 
+        var origRatio = config.OriginalFontScaleRatio;
+        if (ImGui.SliderFloat("日文原文縮放比例 (相對於譯文)", ref origRatio, 0.30f, 1.00f, "%.2f 倍"))
+        {
+            config.OriginalFontScaleRatio = Math.Clamp(origRatio, 0.30f, 1.00f);
+            config.Save();
+        }
+        ImGui.TextDisabled("專門縮小日文原文對照字體（預設 0.75 倍）。當泡泡框空間有限或長句過多時，調小此數值可大幅節省空間！");
+        ImGui.Spacing();
+
         var opacity = config.WindowOpacity;
         if (ImGui.SliderFloat("視窗背景不透明度 (Opacity)", ref opacity, 0.0f, 1.0f, "%.2f"))
         {
@@ -455,11 +464,25 @@ public class ConfigWindow : Window
         }
         ImGui.TextDisabled("在獨立字幕框模式下顯示說話者名稱。啟用「原生對話框覆蓋模式」時將自動忽略（不重複顯示說話者，由遊戲原版姓名條呈現）。");
 
-        var showOriginal = config.ShowOriginalText;
-        if (ImGui.Checkbox("顯示日文原文對照", ref showOriginal))
+        if (config.ReplaceGameTalkAddon)
         {
-            config.ShowOriginalText = showOriginal;
-            config.Save();
+            var replaceShowOriginal = config.ReplaceShowOriginalText;
+            if (ImGui.Checkbox("顯示日文原文對照 (覆蓋模式)", ref replaceShowOriginal))
+            {
+                config.ReplaceShowOriginalText = replaceShowOriginal;
+                config.Save();
+            }
+            ImGui.TextDisabled("在原生對話覆蓋視窗中保留日文原文對照（字體尺寸由上方「日文原文縮放比例」獨立控制）。若取消勾選則僅顯示中文譯文。");
+        }
+        else
+        {
+            var showOriginal = config.ShowOriginalText;
+            if (ImGui.Checkbox("顯示日文原文對照 (獨立字幕模式)", ref showOriginal))
+            {
+                config.ShowOriginalText = showOriginal;
+                config.Save();
+            }
+            ImGui.TextDisabled("在獨立字幕視窗中顯示日文原文對照（字體尺寸由上方「日文原文縮放比例」獨立控制）。");
         }
 
         ImGui.Spacing();

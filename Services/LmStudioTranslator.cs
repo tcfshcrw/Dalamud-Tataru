@@ -116,7 +116,25 @@ public class LmStudioTranslator : IDisposable
                     new { role = "user", content = JsonSerializer.Serialize(inputPayload) }
                 },
                 temperature = 0.2,
-                response_format = new { type = "json_object" }
+                response_format = new
+                {
+                    type = "json_schema",
+                    json_schema = new
+                    {
+                        name = "ffxiv_translation",
+                        strict = true,
+                        schema = new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                name = new { type = "string" },
+                                text = new { type = "string" }
+                            },
+                            required = new[] { "name", "text" }
+                        }
+                    }
+                }
             };
 
             using var req = new HttpRequestMessage(HttpMethod.Post, url);
@@ -130,8 +148,34 @@ public class LmStudioTranslator : IDisposable
             if (!response.IsSuccessStatusCode)
             {
                 var errorDetail = await response.Content.ReadAsStringAsync(cancellationToken);
-                log.Error($"LM Studio error (Status {response.StatusCode}): {errorDetail}");
-                return (speaker, $"[LM Studio 錯誤 {response.StatusCode}]");
+                log.Warning($"LM Studio json_schema failed (Status {response.StatusCode}): {errorDetail}. Retrying without response_format...");
+
+                // Retry without response_format for broader compatibility
+                var fallbackBody = new
+                {
+                    model = modelToUse,
+                    messages = new[]
+                    {
+                        new { role = "system", content = systemPrompt },
+                        new { role = "user", content = JsonSerializer.Serialize(inputPayload) }
+                    },
+                    temperature = 0.2
+                };
+
+                using var retryReq = new HttpRequestMessage(HttpMethod.Post, url);
+                if (!string.IsNullOrWhiteSpace(config.LmStudioApiKey))
+                {
+                    retryReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", config.LmStudioApiKey.Trim());
+                }
+                retryReq.Content = new StringContent(JsonSerializer.Serialize(fallbackBody), Encoding.UTF8, "application/json");
+
+                response = await httpClient.SendAsync(retryReq, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    errorDetail = await response.Content.ReadAsStringAsync(cancellationToken);
+                    log.Error($"LM Studio retry error (Status {response.StatusCode}): {errorDetail}");
+                    return (speaker, $"[LM Studio 錯誤 {response.StatusCode}]");
+                }
             }
 
             var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
