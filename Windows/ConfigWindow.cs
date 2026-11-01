@@ -17,6 +17,7 @@ public class ConfigWindow : Window
     private readonly YoudaoTranslator youdao;
     private readonly GoogleTranslator google;
     private readonly SubtitleOverlayWindow overlayWindow;
+    private readonly DialogueReplaceOverlayWindow replaceOverlayWindow;
     private readonly GlossaryManager glossary;
 
     private bool showApiKey = false;
@@ -39,7 +40,7 @@ public class ConfigWindow : Window
         "自訂模型 (Custom)"
     };
 
-    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, GlossaryManager glossary)
+    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, DialogueReplaceOverlayWindow replaceOverlayWindow, GlossaryManager glossary)
         : base("Tataru Native Translator 設定###TataruConfigWindow")
     {
         this.config = config;
@@ -48,6 +49,7 @@ public class ConfigWindow : Window
         this.youdao = youdao;
         this.google = google;
         this.overlayWindow = overlayWindow;
+        this.replaceOverlayWindow = replaceOverlayWindow;
         this.glossary = glossary;
 
         Size = new Vector2(560, 620);
@@ -439,7 +441,20 @@ public class ConfigWindow : Window
         {
             config.ReplaceGameTalkAddon = replaceTalk;
             config.Save();
-            overlayWindow.ApplyActiveProfile();
+            if (replaceTalk)
+            {
+                overlayWindow.IsOpen = false;
+                overlayWindow.IsConfigOpen = false;
+                replaceOverlayWindow.IsConfigOpen = true;
+                replaceOverlayWindow.IsOpen = true;
+            }
+            else
+            {
+                replaceOverlayWindow.IsOpen = false;
+                replaceOverlayWindow.IsConfigOpen = false;
+                overlayWindow.IsConfigOpen = true;
+                overlayWindow.IsOpen = true;
+            }
         }
         ImGui.TextDisabled("啟用後，遊戲原生的 NPC 對話泡泡將被完全隱藏，由 Tataru 字幕視窗取而代之覆蓋於原位置，並同時顯示中文譯文與日文原文。對話結束時視窗會即刻消失。依然可正常滑鼠點擊或空白鍵推進對話。");
 
@@ -448,22 +463,13 @@ public class ConfigWindow : Window
             ImGui.Spacing();
             ImGui.Indent();
 
-            var replaceSize = config.ReplaceOverlaySize;
-            if (ImGui.DragFloat2("覆蓋視窗尺寸 (寬, 高 像素)", ref replaceSize, 1.0f, 200f, 2560f, "%.0f px"))
-            {
-                config.ReplaceOverlaySize = new Vector2(Math.Max(200f, replaceSize.X), Math.Max(50f, replaceSize.Y));
-                config.Save();
-                overlayWindow.ApplyActiveProfile();
-            }
-            ImGui.TextDisabled("覆蓋視窗的寬度與高度。開啟設定時亦可直接拉動字幕預覽視窗邊框進行調整。");
-
             var followTalk = config.ReplaceFollowTalkAddonPosition;
-            if (ImGui.Checkbox("對話時自動對齊遊戲對話框座標", ref followTalk))
+            if (ImGui.Checkbox("對話時視窗座標自動跟隨遊戲對話框", ref followTalk))
             {
                 config.ReplaceFollowTalkAddonPosition = followTalk;
                 config.Save();
-                overlayWindow.ApplyActiveProfile();
             }
+            ImGui.TextDisabled("若開啟，對話時覆蓋視窗會自動對齊原版 NPC 對話框的螢幕座標；若關閉，則完全固定在您拖曳擺放的位置。");
 
             if (config.ReplaceFollowTalkAddonPosition)
             {
@@ -475,26 +481,10 @@ public class ConfigWindow : Window
                 }
                 ImGui.TextDisabled("相對於遊戲原版 NPC 對話框錨點的微調偏移量。");
             }
-            else
-            {
-                var replacePos = config.ReplaceOverlayPosition;
-                if (ImGui.DragFloat2("自訂固定覆蓋座標 (X, Y 像素)", ref replacePos, 1.0f, 0f, 3840f, "%.0f px"))
-                {
-                    config.ReplaceOverlayPosition = replacePos;
-                    config.Save();
-                    overlayWindow.ApplyActiveProfile();
-                }
-                ImGui.TextDisabled("固定覆蓋視窗螢幕座標。開啟設定時亦可直接拖曳字幕預覽視窗標題列。");
-            }
 
-            if (ImGui.Button("重設覆蓋尺寸與位置為預設值 (650x180)"))
-            {
-                config.ReplaceOverlaySize = new Vector2(650, 180);
-                config.ReplaceOverlayPosition = new Vector2(400, 750);
-                config.ReplacePositionOffset = Vector2.Zero;
-                config.Save();
-                overlayWindow.ApplyActiveProfile();
-            }
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), "💡 覆蓋視窗尺寸與位置調整方式：");
+            ImGui.TextDisabled("此設定視窗開啟時，畫面上的【Tataru 原生對話覆蓋視窗】會常駐顯示。\n您可以直接用滑鼠拖動它至 NPC 對話框位置，並拉伸邊框至所需大小，遊戲會自動永久記憶！");
 
             ImGui.Unindent();
         }
@@ -528,8 +518,27 @@ public class ConfigWindow : Window
 
         if (ImGui.Button("重開字幕視窗 (強制顯示以供調整位置)"))
         {
-            overlayWindow.ResetToStandalonePosition();
-            overlayWindow.IsOpen = true;
+            if (config.ReplaceGameTalkAddon)
+            {
+                replaceOverlayWindow.IsOpen = true;
+            }
+            else
+            {
+                overlayWindow.IsOpen = true;
+            }
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("重設目前視窗位置與大小"))
+        {
+            if (config.ReplaceGameTalkAddon)
+            {
+                replaceOverlayWindow.ResetPosition();
+            }
+            else
+            {
+                overlayWindow.ResetPosition();
+            }
         }
 
         ImGui.SameLine();

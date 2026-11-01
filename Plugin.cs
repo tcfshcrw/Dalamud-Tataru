@@ -33,6 +33,7 @@ public class Plugin : IDalamudPlugin
     private readonly GeminiTranslator translator;
     private readonly DialogueWatcher dialogueWatcher;
     private readonly SubtitleOverlayWindow overlayWindow;
+    private readonly DialogueReplaceOverlayWindow replaceOverlayWindow;
     private readonly ConfigWindow configWindow;
 
     public Plugin()
@@ -50,10 +51,12 @@ public class Plugin : IDalamudPlugin
         dialogueWatcher.OnDialogueChanged += HandleDialogueChanged;
         dialogueWatcher.OnDialogueClosed += HandleDialogueClosed;
 
-        overlayWindow = new SubtitleOverlayWindow(Configuration, dialogueWatcher);
-        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, glossaryManager);
+        overlayWindow = new SubtitleOverlayWindow(Configuration);
+        replaceOverlayWindow = new DialogueReplaceOverlayWindow(Configuration, dialogueWatcher);
+        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, replaceOverlayWindow, glossaryManager);
 
         WindowSystem.AddWindow(overlayWindow);
+        WindowSystem.AddWindow(replaceOverlayWindow);
         WindowSystem.AddWindow(configWindow);
 
         if (Configuration.AutoUpdateGlossary)
@@ -100,7 +103,16 @@ public class Plugin : IDalamudPlugin
     private void HandleDialogueChanged(DialogueEntry entry)
     {
         // 1. Immediately display original dialogue while waiting for AI translation
-        overlayWindow.UpdateDialogue(entry);
+        if (Configuration.ReplaceGameTalkAddon)
+        {
+            overlayWindow.IsOpen = false;
+            replaceOverlayWindow.UpdateDialogue(entry);
+        }
+        else
+        {
+            replaceOverlayWindow.IsOpen = false;
+            overlayWindow.UpdateDialogue(entry);
+        }
 
         // 2. Asynchronously request Gemini translation
         Task.Run(async () =>
@@ -124,6 +136,7 @@ public class Plugin : IDalamudPlugin
     private void HandleDialogueClosed()
     {
         overlayWindow.CloseDialogue();
+        replaceOverlayWindow.CloseDialogue();
     }
 
     private void OnCommand(string command, string args)
@@ -142,7 +155,14 @@ public class Plugin : IDalamudPlugin
         switch (subCommand)
         {
             case "toggle":
-                overlayWindow.IsOpen = !overlayWindow.IsOpen;
+                if (Configuration.ReplaceGameTalkAddon)
+                {
+                    replaceOverlayWindow.IsOpen = !replaceOverlayWindow.IsOpen;
+                }
+                else
+                {
+                    overlayWindow.IsOpen = !overlayWindow.IsOpen;
+                }
                 break;
 
             case "config" or "settings" or "setting":
@@ -240,7 +260,13 @@ public class Plugin : IDalamudPlugin
                     Configuration.ReplaceGameTalkAddon = !Configuration.ReplaceGameTalkAddon;
                 }
                 Configuration.Save();
-                overlayWindow.ApplyActiveProfile();
+                if (configWindow.IsOpen)
+                {
+                    overlayWindow.IsOpen = !Configuration.ReplaceGameTalkAddon;
+                    overlayWindow.IsConfigOpen = !Configuration.ReplaceGameTalkAddon;
+                    replaceOverlayWindow.IsOpen = Configuration.ReplaceGameTalkAddon;
+                    replaceOverlayWindow.IsConfigOpen = Configuration.ReplaceGameTalkAddon;
+                }
                 ChatGui.Print($"[Tataru] 原生對話框覆蓋模式已切換為：{(Configuration.ReplaceGameTalkAddon ? "開啟 (隱藏原生泡泡並雙語顯示)" : "關閉 (已切回獨立翻譯框位置)")}");
                 break;
 
@@ -273,12 +299,27 @@ public class Plugin : IDalamudPlugin
     {
         if (configWindow.IsOpen)
         {
-            overlayWindow.IsConfigOpen = true;
-            overlayWindow.IsOpen = true;
+            if (Configuration.ReplaceGameTalkAddon)
+            {
+                overlayWindow.IsOpen = false;
+                overlayWindow.IsConfigOpen = false;
+
+                replaceOverlayWindow.IsConfigOpen = true;
+                replaceOverlayWindow.IsOpen = true;
+            }
+            else
+            {
+                replaceOverlayWindow.IsOpen = false;
+                replaceOverlayWindow.IsConfigOpen = false;
+
+                overlayWindow.IsConfigOpen = true;
+                overlayWindow.IsOpen = true;
+            }
         }
         else
         {
             overlayWindow.IsConfigOpen = false;
+            replaceOverlayWindow.IsConfigOpen = false;
         }
 
         WindowSystem.Draw();
@@ -305,5 +346,8 @@ public class Plugin : IDalamudPlugin
         youdaoTranslator.Dispose();
         googleTranslator.Dispose();
         WindowSystem.RemoveAllWindows();
+        configWindow.Dispose();
+        overlayWindow.Dispose();
+        replaceOverlayWindow.Dispose();
     }
 }
