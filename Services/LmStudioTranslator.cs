@@ -95,8 +95,20 @@ public class LmStudioTranslator : IDisposable
         {
             var mappedSpeaker = glossary.TranslateSpeaker(speaker, targetLang);
             var langName = targetLang == TargetLanguage.TraditionalChinese ? "繁體中文（台灣習慣）" : "簡體中文";
-            var defaultSystemPrompt = $"你是一位精通《Final Fantasy XIV》（最終幻想14）的資深在地化專家。請將玩家遭遇的日文遊戲對話翻譯成自然、沉浸的{langName}。請忠實保留角色的語氣、性格、口吻與敬語，嚴禁翻譯成英文。請輸出符合 JSON Schema 的物件，包含 'name'（說話者中文名）與 'text'（翻譯後的對話內文）。";
+            var srcName = config.SourceLang switch
+            {
+                SourceLanguage.Japanese => "日文",
+                SourceLanguage.English => "英文",
+                _ => "日文或英文"
+            };
+            var defaultSystemPrompt = $"你是一位精通《Final Fantasy XIV》（最終幻想14）的資深在地化專家。請將玩家遭遇的{srcName}遊戲對話翻譯成自然、沉浸的{langName}。請忠實保留角色的語氣、性格、口吻與敬語，嚴禁翻譯成英文。請輸出符合 JSON Schema 的物件，包含 'name'（說話者中文名）與 'text'（翻譯後的對話內文）。";
             var systemPrompt = string.IsNullOrWhiteSpace(config.CustomSystemPrompt) ? defaultSystemPrompt : config.CustomSystemPrompt;
+
+            systemPrompt = systemPrompt
+                .Replace("{targetLang}", langName)
+                .Replace("{targetLanguage}", langName)
+                .Replace("{sourceLang}", srcName)
+                .Replace("{sourceLanguage}", srcName);
 
             var modelToUse = string.IsNullOrWhiteSpace(config.LmStudioModel) ? "local-model" : config.LmStudioModel.Trim();
             var url = $"{GetBaseUrl()}/chat/completions";

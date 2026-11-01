@@ -10,12 +10,14 @@ namespace DalamudTataru.Services;
 
 public class GoogleTranslator : IDisposable
 {
+    private readonly Configuration config;
     private readonly IPluginLog log;
     private readonly GlossaryManager glossary;
     private readonly HttpClient httpClient;
 
-    public GoogleTranslator(IPluginLog log, GlossaryManager glossary)
+    public GoogleTranslator(Configuration config, IPluginLog log, GlossaryManager glossary)
     {
+        this.config = config;
         this.log = log;
         this.glossary = glossary;
         this.httpClient = new HttpClient
@@ -35,8 +37,14 @@ public class GoogleTranslator : IDisposable
         try
         {
             var mappedSpeaker = glossary.TranslateSpeaker(speaker, targetLang);
+            var sl = config.SourceLang switch
+            {
+                SourceLanguage.Japanese => "ja",
+                SourceLanguage.English => "en",
+                _ => "auto"
+            };
             var tl = targetLang == TargetLanguage.TraditionalChinese ? "zh-TW" : "zh-CN";
-            var url = $"https://translate.googleapis.com/translate_a/single?client=gtx&sl=ja&tl={tl}&dt=t&q={Uri.EscapeDataString(text)}";
+            var url = $"https://translate.googleapis.com/translate_a/single?client=gtx&sl={sl}&tl={tl}&dt=t&q={Uri.EscapeDataString(text)}";
 
             var response = await httpClient.GetAsync(url, cancellationToken);
             if (!response.IsSuccessStatusCode)

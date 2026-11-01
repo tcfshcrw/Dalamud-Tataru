@@ -16,6 +16,13 @@ public enum TargetLanguage
     SimplifiedChinese
 }
 
+public enum SourceLanguage
+{
+    Auto,              // 自動判斷 (日/英皆可)
+    Japanese,          // 日文 (日服/預設)
+    English            // 英文 (美歐/國際服)
+}
+
 public enum TranslationEngine
 {
     Gemini,

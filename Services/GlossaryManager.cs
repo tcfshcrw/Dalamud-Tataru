@@ -18,7 +18,10 @@ public class GlossaryManager
     private readonly List<(string target, string replacement)> postReplaceCht = new();
     private readonly List<(string target, string replacement)> postReplaceChs = new();
 
+    private int enNameCount = 0;
+
     public int NameMapCount => nameMap.Count;
+    public int EnNameMapCount => enNameCount;
     public int PostReplaceChtCount => postReplaceCht.Count;
     public int PostReplaceChsCount => postReplaceChs.Count;
 
@@ -34,6 +37,7 @@ public class GlossaryManager
         try
         {
             nameMap.Clear();
+            enNameCount = 0;
             postReplaceCht.Clear();
             postReplaceChs.Clear();
 
@@ -89,10 +93,46 @@ public class GlossaryManager
                         }
                     }
                 }
-                this.log.Information($"Loaded {nameMap.Count} character/term name mappings.");
+                this.log.Information($"Loaded {nameMap.Count} Japanese character/term name mappings.");
             }
 
-            // 2. Load Post-Translation Corrections (after-translation-cht.json / chs.json)
+            // 2. Load English Name Dictionary (en-ch-name.json)
+            var enNameFile = Path.Combine(dataDir, "en-ch-name.json");
+            if (!File.Exists(enNameFile) && !string.IsNullOrEmpty(assemblyDir))
+            {
+                var bundledEn = Path.Combine(assemblyDir, "Data", "en-ch-name.json");
+                if (File.Exists(bundledEn)) enNameFile = bundledEn;
+            }
+            if (!File.Exists(enNameFile) && Directory.Exists("Data") && File.Exists(Path.Combine("Data", "en-ch-name.json")))
+            {
+                enNameFile = Path.Combine("Data", "en-ch-name.json");
+            }
+
+            if (File.Exists(enNameFile))
+            {
+                var json = File.ReadAllText(enNameFile);
+                var entries = JsonSerializer.Deserialize<List<List<string>>>(json);
+                if (entries != null)
+                {
+                    foreach (var item in entries)
+                    {
+                        if (item.Count >= 3 && !item[0].StartsWith("//"))
+                        {
+                            var en = item[0].Trim();
+                            var cht = item[1].Trim();
+                            var chs = item[2].Trim();
+                            if (!string.IsNullOrEmpty(en))
+                            {
+                                nameMap[en] = (cht, chs);
+                                enNameCount++;
+                            }
+                        }
+                    }
+                    this.log.Information($"Loaded {enNameCount} English character/term name mappings.");
+                }
+            }
+
+            // 3. Load Post-Translation Corrections (after-translation-cht.json / chs.json)
             LoadReplacements(Path.Combine(dataDir, "after-translation-cht.json"), postReplaceCht);
             LoadReplacements(Path.Combine(dataDir, "after-translation-chs.json"), postReplaceChs);
         }
@@ -259,18 +299,26 @@ public class GlossaryManager
                 await File.WriteAllTextAsync(filePath, kvp.Value);
             }
 
+            // Ensure en-ch-name.json is present in user targetDataDir
+            var userEnPath = Path.Combine(targetDataDir, "en-ch-name.json");
+            var bundledEnPath = Path.Combine(bundledDataDir, "en-ch-name.json");
+            if (!File.Exists(userEnPath) && File.Exists(bundledEnPath))
+            {
+                try { File.Copy(bundledEnPath, userEnPath); } catch { }
+            }
+
             LoadGlossaries(configDir);
         }
 
         if (hasChanges)
         {
-            var msg = $"Tataru 文本庫已更新至最新版本！已載入 {nameMap.Count} 筆專有名詞對照、繁中校正 {postReplaceCht.Count} 筆、簡中校正 {postReplaceChs.Count} 筆。";
+            var msg = $"Tataru 文本庫已更新至最新版本！已載入 {nameMap.Count} 筆專有名詞對照（含英文專有名詞 {enNameCount} 筆）、繁中校正 {postReplaceCht.Count} 筆、簡中校正 {postReplaceChs.Count} 筆。";
             log.Information(msg);
             return (true, true, msg);
         }
         else
         {
-            var msg = $"Tataru 文本庫已是最新版本（目前載入 {nameMap.Count} 筆專有名詞對照），無須更新。";
+            var msg = $"Tataru 文本庫已是最新版本（目前載入 {nameMap.Count} 筆專有名詞對照，含英文專有名詞 {enNameCount} 筆），無須更新。";
             log.Information(msg);
             return (true, false, msg);
         }

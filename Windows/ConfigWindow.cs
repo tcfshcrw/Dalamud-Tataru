@@ -31,6 +31,29 @@ public class ConfigWindow : Window
     private bool isUpdatingGlossary = false;
     private string glossaryStatus = string.Empty;
 
+    private string promptEditorBuffer = string.Empty;
+    private bool promptEditorLoaded = false;
+    private int selectedPromptPreset = 0;
+    private string promptTestSpeaker = "ヤ・シュトラ";
+    private string promptTestText = "お前が光の戦士か……。ウリエンジェから話は聞いている。";
+    private string promptTestResult = string.Empty;
+    private bool isTestingCustomPrompt = false;
+
+    private static readonly string[] PromptPresetTemplates = new[]
+    {
+        // 0: Tataru Native Style
+        "You are an expert game localizer for Final Fantasy XIV (FFXIV). Translate the {sourceLang} dialogue into natural, immersive {targetLang}. Match character tone, personality, and honorifics. Return a JSON object with keys 'name' and 'text'.",
+
+        // 1: Echoglossian Style
+        "You are a professional game translator for Final Fantasy XIV. Translate the following {sourceLanguage} dialogue into {targetLanguage}. Preserve character persona, fantasy RPG tone, and nuances without adding conversational filler. Return a JSON object with keys 'name' and 'text'.",
+
+        // 2: EN -> ZH Fantasy Localization
+        "你是一位精通《Final Fantasy XIV》（最終幻想14）的資深在地化專家。請將遊戲中的英文對話翻譯成自然、雅緻、符合奇幻小說體裁的{targetLang}。\n翻譯原則：\n1. 針對古典/早期近代英語（如 Urianger 之 thou/thee/thine/doth 與文言倒裝句）轉譯為典雅古風漢語。\n2. 針對各地區方言與俚語（如利姆薩·羅敏薩海盜黑話、妖精族Pixie語調）轉譯為鮮活道地的語氣。\n3. 嚴格分離說話者與台詞，保留角色口吻與性格。\n4. 輸出符合 JSON 格式的物件，包含 'name'（中文名）與 'text'（中文台詞）。",
+
+        // 3: Sakura / Light Novel Style
+        "你是一位精通 ACG 與日系奇幻輕小說翻譯的資深在地化專家。請將《Final Fantasy XIV》的{sourceLang}遊戲台詞翻譯成文風生動流暢、充滿沉浸感的{targetLang}。請忠實還原角色的性格特徵（如傲嬌、元氣、沉穩或霸道），不可擅自省略感嘆詞或語氣助詞。請輸出標準 JSON 物件，包含 'name' 與 'text'。"
+    };
+
     private string[] models = new[]
     {
         "gemini-3.8-flash",
@@ -57,7 +80,7 @@ public class ConfigWindow : Window
         this.glossary = glossary;
         this.fontHandle = fontHandle;
 
-        Size = new Vector2(560, 620);
+        Size = new Vector2(620, 660);
         SizeCondition = ImGuiCond.FirstUseEver;
     }
 
@@ -76,6 +99,12 @@ public class ConfigWindow : Window
                 if (ImGui.BeginTabItem("AI 翻譯設定"))
                 {
                     DrawTranslationSettings();
+                    ImGui.EndTabItem();
+                }
+
+                if (ImGui.BeginTabItem("AI 提示詞編輯 (Prompt)"))
+                {
+                    DrawPromptEditor();
                     ImGui.EndTabItem();
                 }
 
@@ -296,6 +325,24 @@ public class ConfigWindow : Window
         ImGui.Separator();
         ImGui.Spacing();
 
+        // Source Language
+        ImGui.Text("來源語言 (遊戲客戶端語言)：");
+        int sourceLangIdx = (int)config.SourceLang;
+        string[] sourceLanguages = {
+            "自動判斷 (Auto - 日文/英文皆支援)",
+            "日文 (Japanese - 日服/預設)",
+            "英文 (English - 國際服/美歐專用)"
+        };
+        ImGui.SetNextItemWidth(-1);
+        if (ImGui.Combo("##SourceLangCombo", ref sourceLangIdx, sourceLanguages, sourceLanguages.Length))
+        {
+            config.SourceLang = (SourceLanguage)sourceLangIdx;
+            config.Save();
+            translator.ClearCache();
+        }
+        ImGui.TextDisabled("支援遊玩日服（日文）或美歐國際服（英文）。設為「自動判斷」時，引擎會自動辨識並翻譯為中文。");
+        ImGui.Spacing();
+
         // Target Language
         ImGui.Text("目標語言：");
         int targetLangIdx = (int)config.TargetLang;
@@ -388,7 +435,7 @@ public class ConfigWindow : Window
 
         // Glossary & Dictionaries
         ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "Tataru 專有名詞辭典與文本庫");
-        ImGui.TextDisabled($"目前已載入：{glossary.NameMapCount} 筆 NPC/專有名詞對照，繁中校正 {glossary.PostReplaceChtCount} 筆，簡中校正 {glossary.PostReplaceChsCount} 筆。");
+        ImGui.TextDisabled($"目前已載入：{glossary.NameMapCount} 筆 NPC/專有名詞對照（含英文名詞 {glossary.EnNameMapCount} 筆），繁中校正 {glossary.PostReplaceChtCount} 筆，簡中校正 {glossary.PostReplaceChsCount} 筆。");
         ImGui.Spacing();
 
         var autoUpdate = config.AutoUpdateGlossary;
@@ -416,6 +463,222 @@ public class ConfigWindow : Window
             ImGui.Spacing();
             ImGui.TextWrapped(glossaryStatus);
         }
+    }
+
+    private void DrawPromptEditor()
+    {
+        if (!promptEditorLoaded)
+        {
+            promptEditorBuffer = config.CustomSystemPrompt ?? string.Empty;
+            promptEditorLoaded = true;
+        }
+
+        ImGui.Spacing();
+        ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "AI 系統提示詞編輯器 (System Prompt Editor)");
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        // Status indicator
+        bool isCustom = !string.IsNullOrWhiteSpace(config.CustomSystemPrompt);
+        if (isCustom)
+        {
+            ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), "● 目前狀態：已啟用自訂提示詞 (Custom Prompt Active)");
+        }
+        else
+        {
+            ImGui.TextColored(new Vector4(0.7f, 0.7f, 0.7f, 1.0f), "○ 目前狀態：使用 Tataru 官方預設提示詞 (Default)");
+        }
+        ImGui.TextDisabled("提示詞用於指導 Gemini 或本地 LM Studio 模型如何理解遊戲語境、角色性格與輸出格式。");
+        ImGui.Spacing();
+
+        // 1. Comparison & Guide Header
+        if (ImGui.CollapsingHeader("Tataru Assistant 與 Echoglossian 提示詞架構深度比較與指南"))
+        {
+            ImGui.Indent(10f);
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(1.0f, 0.85f, 0.35f, 1.0f), "【核心設計哲學差異】");
+            ImGui.BulletText("Tataru Assistant (塔塔露助手)：\n" +
+                             "  • 結構化規範：強調 JSON 輸出（{\"name\": \"...\", \"text\": \"...\"}），強制將說話者姓名與內文分開。\n" +
+                             "  • 優勢：原生泡泡框覆蓋時，名字不會污染台詞；且能與專有名詞辭典（jp-ch-name）精確對接。\n" +
+                             "  • 語氣保真：深度要求日語敬語/謙讓語、第一人稱、角色個性與國服/繁中譯名一致性。");
+            ImGui.Spacing();
+            ImGui.BulletText("Echoglossian：\n" +
+                             "  • 自由樣板與純文本：原生採用變數插值（如 {targetLanguage}），偏向直接輸出譯文。\n" +
+                             "  • 優勢：適用於全球多國語言互譯（JP/EN/FR/DE -> 任意語言），相容不支援 JSON Mode 的輕量模型。\n" +
+                             "  • 差異：通常缺乏對說話者名字的獨立結構化解析，古英語/敬語細節需手動寫入提示詞。");
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), "【本插件的融合優勢】");
+            ImGui.TextWrapped("本插件完美整合兩者精華：在保留 Tataru 結構化解析與辭典特點的同時，全面支援動態樣板變數（{sourceLang}、{targetLang}、{targetLanguage}），並強化英翻中古風英語與俚語轉譯！");
+            ImGui.Spacing();
+            ImGui.Unindent(10f);
+            ImGui.Separator();
+            ImGui.Spacing();
+        }
+
+        // 2. Preset Selector
+        ImGui.Text("快速範本選擇 (Presets)：");
+        string[] presetLabels = new[]
+        {
+            "Tataru Assistant 原生風格 (結構化 JSON、角色語氣保真 - 推薦)",
+            "Echoglossian 國際風格 (通用變數、RPG氛圍、簡約指令)",
+            "英翻中古風小說風格 (專攻國際服古英語/Urianger/海盜黑話)",
+            "Sakura / 輕小說生動風格 (二次元沉浸語氣、細膩情感)"
+        };
+
+        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - 140 - 8);
+        ImGui.Combo("##PromptPresetCombo", ref selectedPromptPreset, presetLabels, presetLabels.Length);
+        ImGui.SameLine();
+        if (ImGui.Button("載入範本", new Vector2(140, 0)))
+        {
+            if (selectedPromptPreset >= 0 && selectedPromptPreset < PromptPresetTemplates.Length)
+            {
+                promptEditorBuffer = PromptPresetTemplates[selectedPromptPreset];
+            }
+        }
+
+        ImGui.Spacing();
+
+        // 3. Variables Helper
+        ImGui.Text("動態插值變數（點擊快速插入）：");
+        if (ImGui.Button("{targetLang}##btn"))
+        {
+            promptEditorBuffer += "{targetLang}";
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("{targetLanguage}##btn"))
+        {
+            promptEditorBuffer += "{targetLanguage}";
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("{sourceLang}##btn"))
+        {
+            promptEditorBuffer += "{sourceLang}";
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("{sourceLanguage}##btn"))
+        {
+            promptEditorBuffer += "{sourceLanguage}";
+        }
+        ImGui.TextDisabled("變數將在送出翻譯時自動替換為當前設定的來源/目標語言名稱（如 Traditional Chinese、日文、英文）。");
+        ImGui.Spacing();
+
+        // 4. Editor TextArea
+        ImGui.Text("自訂 System Prompt 內容：");
+        ImGui.InputTextMultiline("##CustomPromptTextArea", ref promptEditorBuffer, 4000, new Vector2(-1, 200));
+        ImGui.Spacing();
+
+        // 5. Actions
+        float actionBtnW = (ImGui.GetContentRegionAvail().X - 16) / 3;
+        if (ImGui.Button("儲存提示詞設定", new Vector2(actionBtnW, 32)))
+        {
+            config.CustomSystemPrompt = promptEditorBuffer.Trim();
+            config.Save();
+            translator.ClearCache();
+            promptTestResult = "提示詞已成功儲存並生效！快取已清空。";
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("還原為官方預設", new Vector2(actionBtnW, 32)))
+        {
+            promptEditorBuffer = string.Empty;
+            config.CustomSystemPrompt = string.Empty;
+            config.Save();
+            translator.ClearCache();
+            promptTestResult = "已還原為官方預設提示詞！快取已清空。";
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("清空編輯器", new Vector2(actionBtnW, 32)))
+        {
+            promptEditorBuffer = string.Empty;
+        }
+
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        // 6. Live Testing Section
+        ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "即時提示詞效果測試");
+        ImGui.TextDisabled("可輸入測試台詞，驗證目前編輯器內的提示詞翻譯效果（無需先行儲存）：");
+        ImGui.Spacing();
+
+        // Sample preset switchers for test
+        ImGui.Text("快速測試範例：");
+        if (ImGui.SmallButton("載入日文測試例 (雅·修特拉)"))
+        {
+            promptTestSpeaker = "ヤ・シュトラ";
+            promptTestText = "お前が光の戦士か……。ウリエンジェから話は聞いている。";
+        }
+        ImGui.SameLine();
+        if (ImGui.SmallButton("載入英文古語測試例 (于里昂熱 - Urianger)"))
+        {
+            promptTestSpeaker = "Urianger";
+            promptTestText = "Thou hast ever been a beacon of hope in our darkest hour. Pray, let us speak anon.";
+        }
+        ImGui.SameLine();
+        if (ImGui.SmallButton("載入海盜黑話測試例 (利姆薩)"))
+        {
+            promptTestSpeaker = "Baderon";
+            promptTestText = "Well met, adventurer! Lookin' for a spot o' work, or just a pint o' ale to wet yer whistle?";
+        }
+
+        ImGui.Spacing();
+        ImGui.Text("測試說話者 (Speaker)：");
+        ImGui.SetNextItemWidth(-1);
+        ImGui.InputText("##PromptTestSpeaker", ref promptTestSpeaker, 100);
+
+        ImGui.Text("測試台詞內文 (Text)：");
+        ImGui.SetNextItemWidth(-1);
+        ImGui.InputTextMultiline("##PromptTestText", ref promptTestText, 500, new Vector2(-1, 60));
+        ImGui.Spacing();
+
+        if (ImGui.Button(isTestingCustomPrompt ? "測試翻譯中..." : "使用目前提示詞進行測試翻譯", new Vector2(-1, 32)) && !isTestingCustomPrompt)
+        {
+            RunPromptTest();
+        }
+
+        if (!string.IsNullOrEmpty(promptTestResult))
+        {
+            ImGui.Spacing();
+            ImGui.TextWrapped(promptTestResult);
+        }
+
+        ImGui.Spacing();
+    }
+
+    private void RunPromptTest()
+    {
+        if (isTestingCustomPrompt) return;
+        isTestingCustomPrompt = true;
+        promptTestResult = "正在套用當前編輯之提示詞進行測試翻譯...";
+
+        var promptToUse = promptEditorBuffer.Trim();
+        var prevPrompt = config.CustomSystemPrompt;
+        config.CustomSystemPrompt = promptToUse;
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                (string spk, string txt) res;
+                if (config.PrimaryEngine == TranslationEngine.LmStudio)
+                {
+                    res = await lmStudio.TranslateAsync(promptTestSpeaker, promptTestText, config.TargetLang);
+                }
+                else
+                {
+                    res = await translator.TranslateWithGeminiCoreAsync(promptTestSpeaker, promptTestText);
+                }
+                promptTestResult = $"【解析結果】\n說話者：{res.spk}\n譯文：{res.txt}";
+            }
+            catch (Exception ex)
+            {
+                promptTestResult = $"【測試失敗】: {ex.Message}";
+            }
+            finally
+            {
+                config.CustomSystemPrompt = prevPrompt;
+                isTestingCustomPrompt = false;
+            }
+        });
     }
 
     private void DrawOverlaySettings()

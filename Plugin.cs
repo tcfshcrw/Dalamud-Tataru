@@ -79,8 +79,8 @@ public class Plugin : IDalamudPlugin
         }
 
         glossaryManager = new GlossaryManager(PluginLog, PluginInterface.GetPluginConfigDirectory());
-        youdaoTranslator = new YoudaoTranslator(PluginLog, glossaryManager);
-        googleTranslator = new GoogleTranslator(PluginLog, glossaryManager);
+        youdaoTranslator = new YoudaoTranslator(Configuration, PluginLog, glossaryManager);
+        googleTranslator = new GoogleTranslator(Configuration, PluginLog, glossaryManager);
         lmStudioTranslator = new LmStudioTranslator(Configuration, glossaryManager, PluginLog);
         translator = new GeminiTranslator(Configuration, glossaryManager, youdaoTranslator, googleTranslator, lmStudioTranslator, PluginLog);
 

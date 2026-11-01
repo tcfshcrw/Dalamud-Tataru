@@ -317,8 +317,20 @@ public class GeminiTranslator : IDisposable
             var mappedSpeaker = glossary.TranslateSpeaker(speaker, config.TargetLang);
 
             var targetLangStr = config.TargetLang == TargetLanguage.TraditionalChinese ? "Traditional Chinese (繁體中文)" : "Simplified Chinese (简体中文)";
-            var defaultSystemPrompt = $"You are an expert game localizer for Final Fantasy XIV (FFXIV). Translate the Japanese dialogue into natural, immersive {targetLangStr}. Match character tone and personality. Return a JSON object with keys 'name' and 'text'.";
+            var sourceLangStr = config.SourceLang switch
+            {
+                SourceLanguage.Japanese => "Japanese",
+                SourceLanguage.English => "English",
+                _ => "Japanese or English"
+            };
+            var defaultSystemPrompt = $"You are an expert game localizer for Final Fantasy XIV (FFXIV). Translate the {sourceLangStr} dialogue into natural, immersive {targetLangStr}. Match character tone and personality. Return a JSON object with keys 'name' and 'text'.";
             var systemPrompt = string.IsNullOrWhiteSpace(config.CustomSystemPrompt) ? defaultSystemPrompt : config.CustomSystemPrompt;
+
+            systemPrompt = systemPrompt
+                .Replace("{targetLang}", targetLangStr)
+                .Replace("{targetLanguage}", targetLangStr)
+                .Replace("{sourceLang}", sourceLangStr)
+                .Replace("{sourceLanguage}", sourceLangStr);
 
             var model = string.IsNullOrWhiteSpace(config.GeminiModel) ? "gemini-3.8-flash" : config.GeminiModel.Trim();
             var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={config.GeminiApiKey.Trim()}";
@@ -531,7 +543,7 @@ public class GeminiTranslator : IDisposable
             return (speaker, string.Empty);
         }
 
-        var cacheKey = $"{config.PrimaryEngine}::{config.TargetLang}::{speaker}::{text}";
+        var cacheKey = $"{config.PrimaryEngine}::{config.SourceLang}::{config.TargetLang}::{speaker}::{text}";
         if (cache.TryGetValue(cacheKey, out var cached))
         {
             return cached;

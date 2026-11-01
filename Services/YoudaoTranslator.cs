@@ -13,6 +13,7 @@ namespace DalamudTataru.Services;
 
 public class YoudaoTranslator : IDisposable
 {
+    private readonly Configuration config;
     private readonly IPluginLog log;
     private readonly GlossaryManager glossary;
     private readonly HttpClient httpClient;
@@ -31,8 +32,9 @@ public class YoudaoTranslator : IDisposable
     private string secretKey = string.Empty;
     private long expireTimestamp = 0;
 
-    public YoudaoTranslator(IPluginLog log, GlossaryManager glossary)
+    public YoudaoTranslator(Configuration config, IPluginLog log, GlossaryManager glossary)
     {
+        this.config = config;
         this.log = log;
         this.glossary = glossary;
 
@@ -140,8 +142,14 @@ public class YoudaoTranslator : IDisposable
             // FFXIV terminology: translate speaker name with Tataru glossary
             var mappedSpeaker = glossary.TranslateSpeaker(speaker, targetLang);
 
+            var fromLang = config.SourceLang switch
+            {
+                SourceLanguage.Japanese => "ja",
+                SourceLanguage.English => "en",
+                _ => "auto"
+            };
             var toLang = targetLang == TargetLanguage.TraditionalChinese ? "zh-CHT" : "zh-CHS";
-            var postData = $"i={Uri.EscapeDataString(text)}&from=ja&to={toLang}&dictResult=true&keyid=webfanyi&sign={sign2}&client={R}&product={I}&appVersion={L}&vendor={D}&pointParam={S}&mysticTime={t2}&keyfrom={U}";
+            var postData = $"i={Uri.EscapeDataString(text)}&from={fromLang}&to={toLang}&dictResult=true&keyid=webfanyi&sign={sign2}&client={R}&product={I}&appVersion={L}&vendor={D}&pointParam={S}&mysticTime={t2}&keyfrom={U}";
 
             var transReq = new HttpRequestMessage(HttpMethod.Post, "https://dict.youdao.com/webtranslate");
             transReq.Headers.Add("Cookie", this.cookie);

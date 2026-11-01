@@ -23,6 +23,7 @@ public class Configuration : IPluginConfiguration
     // Gemini API
     public string GeminiApiKey { get; set; } = string.Empty;
     public string GeminiModel { get; set; } = "gemini-3.8-flash";
+    public SourceLanguage SourceLang { get; set; } = SourceLanguage.Auto;
     public TargetLanguage TargetLang { get; set; } = TargetLanguage.TraditionalChinese;
     public string CustomSystemPrompt { get; set; } = string.Empty;
 
