@@ -463,6 +463,48 @@ public class ConfigWindow : Window
             ImGui.Spacing();
             ImGui.Indent();
 
+            ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "泡泡框風格選擇 (勾選切換)");
+            ImGui.Separator();
+            ImGui.Spacing();
+
+            var useParchment = config.ReplaceUseParchmentTheme && !config.ReplaceUseNativeBubble;
+            if (ImGui.Checkbox("方案 A：Tataru 仿原版羊皮紙風格 (象牙米白底色 + 深棕外框 + 自由拉伸尺寸)", ref useParchment))
+            {
+                if (useParchment)
+                {
+                    config.ReplaceUseParchmentTheme = true;
+                    config.ReplaceUseNativeBubble = false;
+                }
+                else
+                {
+                    config.ReplaceUseParchmentTheme = false;
+                }
+                config.Save();
+            }
+            ImGui.TextDisabled("高仿 FFXIV 遊戲原版對話泡泡！擁有經典米白羊皮紙底色、復古外框與深色字體，且視窗可自由任意縮放大小，不怕雙語行數過多溢出。");
+
+            var useNative = config.ReplaceUseNativeBubble;
+            if (ImGui.Checkbox("方案 B：保留遊戲原生泡泡框底圖 (100% 原始對話泡泡與跳動金箭頭，僅隱藏遊戲內文)", ref useNative))
+            {
+                if (useNative)
+                {
+                    config.ReplaceUseNativeBubble = true;
+                    config.ReplaceUseParchmentTheme = false;
+                }
+                else
+                {
+                    config.ReplaceUseNativeBubble = false;
+                }
+                config.Save();
+            }
+            ImGui.TextDisabled("完整保留遊戲原生繪製的泡泡底圖與翻頁游標，僅精準隱藏日文文字節點，由 Tataru 以透明背景直接覆蓋深色中文譯文。");
+
+            if (!config.ReplaceUseParchmentTheme && !config.ReplaceUseNativeBubble)
+            {
+                ImGui.TextColored(new Vector4(1.0f, 0.85f, 0.35f, 1.0f), "ℹ️ 目前兩者皆未勾選：套用經典深色半透明科技懸浮風。");
+            }
+            ImGui.Spacing();
+
             var followTalk = config.ReplaceFollowTalkAddonPosition;
             if (ImGui.Checkbox("對話時視窗座標自動跟隨遊戲對話框", ref followTalk))
             {

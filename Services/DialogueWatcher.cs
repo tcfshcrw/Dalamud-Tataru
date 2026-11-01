@@ -18,6 +18,7 @@ public unsafe class DialogueWatcher : IDisposable
     public Vector2? TalkAddonPosition { get; private set; }
     public Vector2? TalkAddonSize { get; private set; }
     private bool isTalkAlphaZeroed = false;
+    private bool isTalkTextNodeHidden = false;
 
     private string lastSpeaker = string.Empty;
     private string lastText = string.Empty;
@@ -52,16 +53,49 @@ public unsafe class DialogueWatcher : IDisposable
                 {
                     if (config.ReplaceGameTalkAddon)
                     {
-                        if (talkAddon->AtkUnitBase.Alpha != 0)
+                        if (config.ReplaceUseNativeBubble)
                         {
-                            talkAddon->AtkUnitBase.Alpha = 0;
-                            isTalkAlphaZeroed = true;
+                            // 方案 B：保留遊戲原生泡泡框底圖，僅隱藏遊戲原生文字
+                            if (isTalkAlphaZeroed)
+                            {
+                                talkAddon->AtkUnitBase.Alpha = 255;
+                                isTalkAlphaZeroed = false;
+                            }
+
+                            if (talkAddon->AtkTextNode228 != null)
+                            {
+                                talkAddon->AtkTextNode228->AtkResNode.ToggleVisibility(false);
+                                isTalkTextNodeHidden = true;
+                            }
+                        }
+                        else
+                        {
+                            // 方案 A 或深色半透明：隱藏遊戲原生泡泡框，由 Tataru 自行繪製
+                            if (talkAddon->AtkUnitBase.Alpha != 0)
+                            {
+                                talkAddon->AtkUnitBase.Alpha = 0;
+                                isTalkAlphaZeroed = true;
+                            }
+
+                            if (isTalkTextNodeHidden && talkAddon->AtkTextNode228 != null)
+                            {
+                                talkAddon->AtkTextNode228->AtkResNode.ToggleVisibility(true);
+                                isTalkTextNodeHidden = false;
+                            }
                         }
                     }
-                    else if (isTalkAlphaZeroed)
+                    else
                     {
-                        talkAddon->AtkUnitBase.Alpha = 255;
-                        isTalkAlphaZeroed = false;
+                        if (isTalkAlphaZeroed)
+                        {
+                            talkAddon->AtkUnitBase.Alpha = 255;
+                            isTalkAlphaZeroed = false;
+                        }
+                        if (isTalkTextNodeHidden && talkAddon->AtkTextNode228 != null)
+                        {
+                            talkAddon->AtkTextNode228->AtkResNode.ToggleVisibility(true);
+                            isTalkTextNodeHidden = false;
+                        }
                     }
 
                     if (talkAddon->AtkUnitBase.IsVisible)
@@ -262,7 +296,7 @@ public unsafe class DialogueWatcher : IDisposable
     {
         this.framework.Update -= OnFrameworkUpdate;
 
-        if (isTalkAlphaZeroed)
+        if (isTalkAlphaZeroed || isTalkTextNodeHidden)
         {
             try
             {
@@ -273,6 +307,10 @@ public unsafe class DialogueWatcher : IDisposable
                     if (talkAddon != null)
                     {
                         talkAddon->AtkUnitBase.Alpha = 255;
+                        if (talkAddon->AtkTextNode228 != null)
+                        {
+                            talkAddon->AtkTextNode228->AtkResNode.ToggleVisibility(true);
+                        }
                     }
                 }
             }
@@ -281,6 +319,7 @@ public unsafe class DialogueWatcher : IDisposable
                 // Ignore addon restore error on disposal
             }
             isTalkAlphaZeroed = false;
+            isTalkTextNodeHidden = false;
         }
     }
 }
