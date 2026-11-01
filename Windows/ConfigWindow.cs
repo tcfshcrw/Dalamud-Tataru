@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Threading.Tasks;
+using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Interface.Windowing;
 using DalamudTataru.Models;
 using DalamudTataru.Services;
@@ -20,6 +21,7 @@ public class ConfigWindow : Window
     private readonly DialogueReplaceOverlayWindow replaceOverlayWindow;
     private readonly DialogueWatcher dialogueWatcher;
     private readonly GlossaryManager glossary;
+    private readonly IFontHandle? fontHandle;
 
     private bool showApiKey = false;
     private string testStatus = string.Empty;
@@ -41,7 +43,7 @@ public class ConfigWindow : Window
         "自訂模型 (Custom)"
     };
 
-    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, DialogueReplaceOverlayWindow replaceOverlayWindow, DialogueWatcher dialogueWatcher, GlossaryManager glossary)
+    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, DialogueReplaceOverlayWindow replaceOverlayWindow, DialogueWatcher dialogueWatcher, GlossaryManager glossary, IFontHandle? fontHandle = null)
         : base("Tataru Native Translator 設定###TataruConfigWindow")
     {
         this.config = config;
@@ -53,6 +55,7 @@ public class ConfigWindow : Window
         this.replaceOverlayWindow = replaceOverlayWindow;
         this.dialogueWatcher = dialogueWatcher;
         this.glossary = glossary;
+        this.fontHandle = fontHandle;
 
         Size = new Vector2(560, 620);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -60,27 +63,40 @@ public class ConfigWindow : Window
 
     public override void Draw()
     {
-        if (ImGui.BeginTabBar("TataruSettingsTabs"))
+        IDisposable? fontScope = null;
+        if (fontHandle?.Available == true)
         {
-            if (ImGui.BeginTabItem("AI 翻譯設定"))
-            {
-                DrawTranslationSettings();
-                ImGui.EndTabItem();
-            }
+            fontScope = fontHandle.Push();
+        }
 
-            if (ImGui.BeginTabItem("字幕與視窗外觀"))
+        try
+        {
+            if (ImGui.BeginTabBar("TataruSettingsTabs"))
             {
-                DrawOverlaySettings();
-                ImGui.EndTabItem();
-            }
+                if (ImGui.BeginTabItem("AI 翻譯設定"))
+                {
+                    DrawTranslationSettings();
+                    ImGui.EndTabItem();
+                }
 
-            if (ImGui.BeginTabItem("關於 Tataru"))
-            {
-                DrawAbout();
-                ImGui.EndTabItem();
-            }
+                if (ImGui.BeginTabItem("字幕與視窗外觀"))
+                {
+                    DrawOverlaySettings();
+                    ImGui.EndTabItem();
+                }
 
-            ImGui.EndTabBar();
+                if (ImGui.BeginTabItem("關於 Tataru"))
+                {
+                    DrawAbout();
+                    ImGui.EndTabItem();
+                }
+
+                ImGui.EndTabBar();
+            }
+        }
+        finally
+        {
+            fontScope?.Dispose();
         }
     }
 

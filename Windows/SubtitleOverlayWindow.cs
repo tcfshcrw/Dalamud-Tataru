@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Interface.Windowing;
 using DalamudTataru.Models;
 using Dalamud.Bindings.ImGui;
@@ -9,6 +10,7 @@ namespace DalamudTataru.Windows;
 public class SubtitleOverlayWindow : Window
 {
     private readonly Configuration config;
+    private readonly IFontHandle? fontHandle;
     private DialogueEntry? currentEntry;
     private DateTime lastUpdateTime = DateTime.MinValue;
     private bool isDialogueActive = false;
@@ -26,12 +28,13 @@ public class SubtitleOverlayWindow : Window
         needsReset = true;
     }
 
-    public SubtitleOverlayWindow(Configuration config) 
+    public SubtitleOverlayWindow(Configuration config, IFontHandle? fontHandle = null) 
         : base("Tataru 獨立字幕視窗 (開啟設定時可拖曳調整)###TataruSubtitleOverlay", 
             ImGuiWindowFlags.NoScrollbar | 
             ImGuiWindowFlags.NoFocusOnAppearing)
     {
         this.config = config;
+        this.fontHandle = fontHandle;
 
         RespectCloseHotkey = false;
         DisableWindowSounds = true;
@@ -121,75 +124,88 @@ public class SubtitleOverlayWindow : Window
 
     public override void Draw()
     {
-        var scale = Math.Clamp(config.FontScale, 0.5f, 3.0f);
-        ImGui.SetWindowFontScale(scale);
-        ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 25) / scale);
-
-        // When config is open and there is no active in-game dialogue, show an interactive preview
-        if (IsConfigOpen && (!isDialogueActive || currentEntry == null))
+        IDisposable? fontScope = null;
+        if (fontHandle?.Available == true)
         {
+            fontScope = fontHandle.Push();
+        }
+
+        try
+        {
+            var scale = Math.Clamp(config.FontScale, 0.5f, 3.0f);
+            ImGui.SetWindowFontScale(scale);
+            ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 25) / scale);
+
+            // When config is open and there is no active in-game dialogue, show an interactive preview
+            if (IsConfigOpen && (!isDialogueActive || currentEntry == null))
+            {
+                if (config.ShowSpeaker)
+                {
+                    ImGui.TextColored(config.SpeakerColor, "【タタル (塔塔露)】");
+                }
+
+                ImGui.TextColored(config.TextColor, "冒險者大人，【獨立字幕模式】預覽中！\n您可以拖曳移動位置或拉動邊框調整大小。\n關閉設定視窗後，視窗將自動開啟「滑鼠點擊穿透」。");
+                if (config.ShowOriginalText)
+                {
+                    ImGui.Spacing();
+                    ImGui.TextColored(config.OriginalTextColor, "冒険者さん、設定ウィンドウが開いていまっす！");
+                }
+
+                ImGui.PopTextWrapPos();
+                ImGui.SetWindowFontScale(1.0f);
+                return;
+            }
+
+            if (currentEntry == null)
+            {
+                ImGui.PopTextWrapPos();
+                ImGui.SetWindowFontScale(1.0f);
+                return;
+            }
+
+            // 1. Speaker
             if (config.ShowSpeaker)
             {
-                ImGui.TextColored(config.SpeakerColor, "【タタル (塔塔露)】");
+                var speaker = !string.IsNullOrEmpty(currentEntry.TranslatedSpeaker) 
+                    ? currentEntry.TranslatedSpeaker 
+                    : currentEntry.Speaker;
+
+                if (!string.IsNullOrEmpty(speaker))
+                {
+                    if (config.ShowOriginalText && !string.IsNullOrEmpty(currentEntry.Speaker) && currentEntry.Speaker != speaker)
+                    {
+                        ImGui.TextColored(config.SpeakerColor, $"【{speaker} ({currentEntry.Speaker})】");
+                    }
+                    else
+                    {
+                        ImGui.TextColored(config.SpeakerColor, $"【{speaker}】");
+                    }
+                }
             }
 
-            ImGui.TextColored(config.TextColor, "冒險者大人，【獨立字幕模式】預覽中！\n您可以拖曳移動位置或拉動邊框調整大小。\n關閉設定視窗後，視窗將自動開啟「滑鼠點擊穿透」。");
-            if (config.ShowOriginalText)
+            // 2. Translated Text
+            if (currentEntry.IsTranslating)
+            {
+                ImGui.TextColored(new Vector4(0.7f, 0.7f, 0.7f, 1.0f), "翻譯中...");
+            }
+            else
+            {
+                ImGui.TextColored(config.TextColor, currentEntry.TranslatedText);
+            }
+
+            // 3. Original Japanese Text
+            if (config.ShowOriginalText && !string.IsNullOrEmpty(currentEntry.OriginalText))
             {
                 ImGui.Spacing();
-                ImGui.TextColored(config.OriginalTextColor, "冒険者さん、設定ウィンドウが開いていまっす！");
+                ImGui.TextColored(config.OriginalTextColor, currentEntry.OriginalText);
             }
 
             ImGui.PopTextWrapPos();
             ImGui.SetWindowFontScale(1.0f);
-            return;
         }
-
-        if (currentEntry == null)
+        finally
         {
-            ImGui.PopTextWrapPos();
-            ImGui.SetWindowFontScale(1.0f);
-            return;
+            fontScope?.Dispose();
         }
-
-        // 1. Speaker
-        if (config.ShowSpeaker)
-        {
-            var speaker = !string.IsNullOrEmpty(currentEntry.TranslatedSpeaker) 
-                ? currentEntry.TranslatedSpeaker 
-                : currentEntry.Speaker;
-
-            if (!string.IsNullOrEmpty(speaker))
-            {
-                if (config.ShowOriginalText && !string.IsNullOrEmpty(currentEntry.Speaker) && currentEntry.Speaker != speaker)
-                {
-                    ImGui.TextColored(config.SpeakerColor, $"【{speaker} ({currentEntry.Speaker})】");
-                }
-                else
-                {
-                    ImGui.TextColored(config.SpeakerColor, $"【{speaker}】");
-                }
-            }
-        }
-
-        // 2. Translated Text
-        if (currentEntry.IsTranslating)
-        {
-            ImGui.TextColored(new Vector4(0.7f, 0.7f, 0.7f, 1.0f), "翻譯中...");
-        }
-        else
-        {
-            ImGui.TextColored(config.TextColor, currentEntry.TranslatedText);
-        }
-
-        // 3. Original Japanese Text
-        if (config.ShowOriginalText && !string.IsNullOrEmpty(currentEntry.OriginalText))
-        {
-            ImGui.Spacing();
-            ImGui.TextColored(config.OriginalTextColor, currentEntry.OriginalText);
-        }
-
-        ImGui.PopTextWrapPos();
-        ImGui.SetWindowFontScale(1.0f);
     }
 }

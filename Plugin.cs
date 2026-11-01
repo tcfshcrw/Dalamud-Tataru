@@ -1,6 +1,10 @@
 using System;
+using System.Text.Unicode;
 using System.Threading.Tasks;
+using Dalamud;
 using Dalamud.Game.Command;
+using Dalamud.Interface;
+using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
@@ -25,6 +29,7 @@ public class Plugin : IDalamudPlugin
 
     public Configuration Configuration { get; init; }
     public WindowSystem WindowSystem { get; init; } = new("TataruPlugin");
+    public IFontHandle? CjkFontHandle { get; private set; }
 
     private readonly GlossaryManager glossaryManager;
     private readonly YoudaoTranslator youdaoTranslator;
@@ -41,6 +46,38 @@ public class Plugin : IDalamudPlugin
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Configuration.Initialize(PluginInterface);
 
+        try
+        {
+            var glyphRanges = FontAtlasBuildToolkitUtilities.BeginGlyphRange(UnicodeRanges.BasicLatin)
+                .With(
+                    UnicodeRanges.GeneralPunctuation,
+                    UnicodeRanges.CjkSymbolsandPunctuation,
+                    UnicodeRanges.HalfwidthandFullwidthForms,
+                    UnicodeRanges.Hiragana,
+                    UnicodeRanges.Katakana,
+                    UnicodeRanges.CjkCompatibility
+                )
+                .WithLanguage("zh-TW")
+                .WithLanguage("zh-CN")
+                .Build(addFallbackCodepoints: true, addEllipsisCodepoints: true);
+
+            var fontConfig = new SafeFontConfig
+            {
+                SizePt = 16f,
+                GlyphRanges = glyphRanges,
+            };
+
+            CjkFontHandle = PluginInterface.UiBuilder.FontAtlas.NewDelegateFontHandle(
+                e => e.OnPreBuild(
+                    tk => tk.AddDalamudAssetFont(
+                        DalamudAsset.NotoSansCjkMedium,
+                        fontConfig)));
+        }
+        catch (Exception ex)
+        {
+            PluginLog.Warning(ex, "無法建立 NotoSansCjk 中文字型句柄，將使用預設字型。");
+        }
+
         glossaryManager = new GlossaryManager(PluginLog, PluginInterface.GetPluginConfigDirectory());
         youdaoTranslator = new YoudaoTranslator(PluginLog, glossaryManager);
         googleTranslator = new GoogleTranslator(PluginLog, glossaryManager);
@@ -51,9 +88,9 @@ public class Plugin : IDalamudPlugin
         dialogueWatcher.OnDialogueChanged += HandleDialogueChanged;
         dialogueWatcher.OnDialogueClosed += HandleDialogueClosed;
 
-        overlayWindow = new SubtitleOverlayWindow(Configuration);
-        replaceOverlayWindow = new DialogueReplaceOverlayWindow(Configuration, dialogueWatcher);
-        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, replaceOverlayWindow, dialogueWatcher, glossaryManager);
+        overlayWindow = new SubtitleOverlayWindow(Configuration, CjkFontHandle);
+        replaceOverlayWindow = new DialogueReplaceOverlayWindow(Configuration, dialogueWatcher, CjkFontHandle);
+        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, replaceOverlayWindow, dialogueWatcher, glossaryManager, CjkFontHandle);
 
         WindowSystem.AddWindow(overlayWindow);
         WindowSystem.AddWindow(replaceOverlayWindow);
@@ -374,6 +411,7 @@ public class Plugin : IDalamudPlugin
         lmStudioTranslator.Dispose();
         youdaoTranslator.Dispose();
         googleTranslator.Dispose();
+        CjkFontHandle?.Dispose();
         WindowSystem.RemoveAllWindows();
     }
 }

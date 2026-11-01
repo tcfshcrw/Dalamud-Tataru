@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Interface.Windowing;
 using DalamudTataru.Models;
 using DalamudTataru.Services;
@@ -11,6 +12,7 @@ public class DialogueReplaceOverlayWindow : Window
 {
     private readonly Configuration config;
     private readonly DialogueWatcher dialogueWatcher;
+    private readonly IFontHandle? fontHandle;
     private DialogueEntry? currentEntry;
     private bool isDialogueActive = false;
     private bool needsReset = false;
@@ -30,13 +32,14 @@ public class DialogueReplaceOverlayWindow : Window
         SizeCondition = ImGuiCond.Always;
     }
 
-    public DialogueReplaceOverlayWindow(Configuration config, DialogueWatcher dialogueWatcher)
+    public DialogueReplaceOverlayWindow(Configuration config, DialogueWatcher dialogueWatcher, IFontHandle? fontHandle = null)
         : base("Tataru 原生對話覆蓋視窗 (開啟設定時可拖曳調整)###TataruReplaceOverlay",
             ImGuiWindowFlags.NoScrollbar |
             ImGuiWindowFlags.NoFocusOnAppearing)
     {
         this.config = config;
         this.dialogueWatcher = dialogueWatcher;
+        this.fontHandle = fontHandle;
 
         RespectCloseHotkey = false;
         DisableWindowSounds = true;
@@ -148,43 +151,88 @@ public class DialogueReplaceOverlayWindow : Window
 
     public override void Draw()
     {
-        bool useDarkText = config.ReplaceUseNativeBubble || config.ReplaceUseParchmentTheme;
-        var scale = Math.Clamp(config.ReplaceFontScale, 0.5f, 3.0f);
-        ImGui.SetWindowFontScale(scale);
-        ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 30) / scale);
-
-        // 方案 A：Tataru 仿原版羊皮紙風格繪製底圖與邊框
-        if (config.ReplaceUseParchmentTheme && !config.ReplaceUseNativeBubble)
+        IDisposable? fontScope = null;
+        if (fontHandle?.Available == true)
         {
-            var drawList = ImGui.GetWindowDrawList();
-            var min = ImGui.GetWindowPos();
-            var max = min + ImGui.GetWindowSize();
-
-            uint bgColor = ImGui.ColorConvertFloat4ToU32(new Vector4(0.95f, 0.92f, 0.87f, 0.96f));
-            uint borderColor = ImGui.ColorConvertFloat4ToU32(new Vector4(0.35f, 0.27f, 0.20f, 0.98f));
-            uint innerBorderColor = ImGui.ColorConvertFloat4ToU32(new Vector4(0.85f, 0.80f, 0.72f, 0.75f));
-
-            drawList.AddRectFilled(min, max, bgColor, 16.0f);
-            drawList.AddRect(min, max, borderColor, 16.0f, ImDrawFlags.None, 2.5f);
-            drawList.AddRect(min + new Vector2(2, 2), max - new Vector2(2, 2), innerBorderColor, 14.0f, ImDrawFlags.None, 1.0f);
+            fontScope = fontHandle.Push();
         }
 
-        var textColor = useDarkText ? new Vector4(0.10f, 0.08f, 0.06f, 1.0f) : config.TextColor;
-        var origTextColor = useDarkText ? new Vector4(0.42f, 0.38f, 0.34f, 1.0f) : config.OriginalTextColor;
-
-        // When config is open and there is no active in-game dialogue, show an interactive preview
-        if (IsConfigOpen && (!isDialogueActive || currentEntry == null))
+        try
         {
-            string modeDesc = config.ReplaceUseNativeBubble 
-                ? "【原生泡泡底圖模式 (方案 B)】預覽中！\n遊戲原版米白泡泡框與金箭頭將完整保留，僅替換內文字體。"
-                : config.ReplaceUseParchmentTheme 
-                    ? "【Tataru 仿原版羊皮紙風格 (方案 A)】預覽中！\n米白象牙色底框 + 復古深褐邊框，支援滑鼠任意拉伸大小。"
-                    : "【現代深色半透明模式】預覽中！";
+            bool useDarkText = config.ReplaceUseNativeBubble || config.ReplaceUseParchmentTheme;
+            var scale = Math.Clamp(config.ReplaceFontScale, 0.5f, 3.0f);
+            ImGui.SetWindowFontScale(scale);
+            ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 30) / scale);
 
-            ImGui.TextColored(textColor, $"冒險者大人，{modeDesc}\n對話結束時視窗將自動即刻消失。");
-            ImGui.Spacing();
-            ImGui.TextColored(origTextColor, "冒険者さん、ネイティブ会話置換プレビュー中でっす！");
+            // 方案 A：Tataru 仿原版羊皮紙風格繪製底圖與邊框
+            if (config.ReplaceUseParchmentTheme && !config.ReplaceUseNativeBubble)
+            {
+                var drawList = ImGui.GetWindowDrawList();
+                var min = ImGui.GetWindowPos();
+                var max = min + ImGui.GetWindowSize();
 
+                uint bgColor = ImGui.ColorConvertFloat4ToU32(new Vector4(0.95f, 0.92f, 0.87f, 0.96f));
+                uint borderColor = ImGui.ColorConvertFloat4ToU32(new Vector4(0.35f, 0.27f, 0.20f, 0.98f));
+                uint innerBorderColor = ImGui.ColorConvertFloat4ToU32(new Vector4(0.85f, 0.80f, 0.72f, 0.75f));
+
+                drawList.AddRectFilled(min, max, bgColor, 16.0f);
+                drawList.AddRect(min, max, borderColor, 16.0f, ImDrawFlags.None, 2.5f);
+                drawList.AddRect(min + new Vector2(2, 2), max - new Vector2(2, 2), innerBorderColor, 14.0f, ImDrawFlags.None, 1.0f);
+            }
+
+            var textColor = useDarkText ? new Vector4(0.10f, 0.08f, 0.06f, 1.0f) : config.TextColor;
+            var origTextColor = useDarkText ? new Vector4(0.42f, 0.38f, 0.34f, 1.0f) : config.OriginalTextColor;
+
+            // When config is open and there is no active in-game dialogue, show an interactive preview
+            if (IsConfigOpen && (!isDialogueActive || currentEntry == null))
+            {
+                string modeDesc = config.ReplaceUseNativeBubble 
+                    ? "【原生泡泡底圖模式 (方案 B)】預覽中！\n遊戲原版米白泡泡框與金箭頭將完整保留，僅替換內文字體。"
+                    : config.ReplaceUseParchmentTheme 
+                        ? "【Tataru 仿原版羊皮紙風格 (方案 A)】預覽中！\n米白象牙色底框 + 復古深褐邊框，支援滑鼠任意拉伸大小。"
+                        : "【現代深色半透明模式】預覽中！";
+
+                ImGui.TextColored(textColor, $"冒險者大人，{modeDesc}\n對話結束時視窗將自動即刻消失。");
+                ImGui.Spacing();
+                ImGui.TextColored(origTextColor, "冒険者さん、ネイティブ会話置換プレビュー中でっす！");
+
+                if (config.ReplaceUseParchmentTheme && !config.ReplaceUseNativeBubble)
+                {
+                    ImGui.Spacing();
+                    ImGui.SameLine(Math.Max(0f, ImGui.GetWindowWidth() - 32));
+                    ImGui.TextColored(new Vector4(0.85f, 0.65f, 0.15f, 1.0f), "◆");
+                }
+
+                ImGui.PopTextWrapPos();
+                ImGui.SetWindowFontScale(1.0f);
+                return;
+            }
+
+            if (currentEntry == null)
+            {
+                ImGui.PopTextWrapPos();
+                ImGui.SetWindowFontScale(1.0f);
+                return;
+            }
+
+            // 1. Translated Text
+            if (currentEntry.IsTranslating)
+            {
+                ImGui.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1.0f), "翻譯中...");
+            }
+            else
+            {
+                ImGui.TextColored(textColor, currentEntry.TranslatedText);
+            }
+
+            // 2. Original Japanese Text
+            if (!string.IsNullOrEmpty(currentEntry.OriginalText))
+            {
+                ImGui.Spacing();
+                ImGui.TextColored(origTextColor, currentEntry.OriginalText);
+            }
+
+            // 4. Golden prompt arrow cursor for Scheme A
             if (config.ReplaceUseParchmentTheme && !config.ReplaceUseNativeBubble)
             {
                 ImGui.Spacing();
@@ -194,42 +242,10 @@ public class DialogueReplaceOverlayWindow : Window
 
             ImGui.PopTextWrapPos();
             ImGui.SetWindowFontScale(1.0f);
-            return;
         }
-
-        if (currentEntry == null)
+        finally
         {
-            ImGui.PopTextWrapPos();
-            ImGui.SetWindowFontScale(1.0f);
-            return;
+            fontScope?.Dispose();
         }
-
-        // 1. Translated Text
-        if (currentEntry.IsTranslating)
-        {
-            ImGui.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1.0f), "翻譯中...");
-        }
-        else
-        {
-            ImGui.TextColored(textColor, currentEntry.TranslatedText);
-        }
-
-        // 2. Original Japanese Text
-        if (!string.IsNullOrEmpty(currentEntry.OriginalText))
-        {
-            ImGui.Spacing();
-            ImGui.TextColored(origTextColor, currentEntry.OriginalText);
-        }
-
-        // 4. Golden prompt arrow cursor for Scheme A
-        if (config.ReplaceUseParchmentTheme && !config.ReplaceUseNativeBubble)
-        {
-            ImGui.Spacing();
-            ImGui.SameLine(Math.Max(0f, ImGui.GetWindowWidth() - 32));
-            ImGui.TextColored(new Vector4(0.85f, 0.65f, 0.15f, 1.0f), "◆");
-        }
-
-        ImGui.PopTextWrapPos();
-        ImGui.SetWindowFontScale(1.0f);
     }
 }
