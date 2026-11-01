@@ -1,0 +1,19 @@
+{
+  "Author": "Tataru Team",
+  "Name": "Tataru Native Translator",
+  "InternalName": "DalamudTataru",
+  "AssemblyVersion": "1.0.0.0",
+  "Description": "原生 FFXIV 劇情即時翻譯插件，整合 Tataru Assistant 專有名詞辭典與 Google Gemini AI，無須開啟任何外部 exe 程式。",
+  "ApplicableVersion": "any",
+  "DalamudApiLevel": 15,
+  "Punchline": "遊戲原生 Gemini / 本地 AI / 有道 / Google 劇情即時翻譯插件",
+  "RepoUrl": "https://github.com/tcfshcrw/Dalumud-Tataru",
+  "Tags": [
+    "translation",
+    "chinese",
+    "gemini",
+    "tataru",
+    "dialogue",
+    "subtitles"
+  ]
+}
