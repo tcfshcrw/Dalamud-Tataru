@@ -5,7 +5,7 @@
     "Punchline": "遊戲原生 Gemini / 本地 AI / 有道 / Google 劇情即時翻譯插件",
     "Description": "原生 FFXIV 劇情即時翻譯插件，整合 Tataru Assistant 專有名詞辭典與 Google Gemini AI，無須開啟任何外部 exe 程式。",
     "InternalName": "DalamudTataru",
-    "AssemblyVersion": "0.26.44.720",
+    "AssemblyVersion": "0.26.44.721",
     "RepoUrl": "https://github.com/tcfshcrw/Dalumud-Tataru",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -16,6 +16,6 @@
     "DownloadLinkTesting": "https://github.com/tcfshcrw/Dalumud-Tataru/releases/latest/download/latest.zip",
     "DownloadLinkUpdate": "https://github.com/tcfshcrw/Dalumud-Tataru/releases/latest/download/latest.zip",
     "DownloadCount": 0,
-    "LastUpdated": "1793530494"
+    "LastUpdated": "1793533786"
   }
 ]
