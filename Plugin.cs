@@ -346,8 +346,5 @@ public class Plugin : IDalamudPlugin
         youdaoTranslator.Dispose();
         googleTranslator.Dispose();
         WindowSystem.RemoveAllWindows();
-        configWindow.Dispose();
-        overlayWindow.Dispose();
-        replaceOverlayWindow.Dispose();
     }
 }
