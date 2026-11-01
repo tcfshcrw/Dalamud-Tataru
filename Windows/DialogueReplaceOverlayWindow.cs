@@ -203,7 +203,10 @@ public class DialogueReplaceOverlayWindow : Window
                     ImGui.SetWindowFontScale(origScale);
                     ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 30) / origScale);
 
-                    ImGui.Spacing();
+                    if (!config.ReplaceUseNativeBubble)
+                    {
+                        ImGui.Spacing();
+                    }
                     ImGui.TextColored(origTextColor, "冒険者さん、ネイティブ会話置換プレビュー中でっす！");
 
                     ImGui.PopTextWrapPos();
@@ -250,7 +253,10 @@ public class DialogueReplaceOverlayWindow : Window
                 ImGui.SetWindowFontScale(origScale);
                 ImGui.PushTextWrapPos((ImGui.GetWindowWidth() - 30) / origScale);
 
-                ImGui.Spacing();
+                if (!config.ReplaceUseNativeBubble)
+                {
+                    ImGui.Spacing();
+                }
                 ImGui.TextColored(origTextColor, currentEntry.OriginalText);
 
                 ImGui.PopTextWrapPos();
