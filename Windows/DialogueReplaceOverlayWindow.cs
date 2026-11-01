@@ -38,6 +38,9 @@ public class DialogueReplaceOverlayWindow : Window
         this.config = config;
         this.dialogueWatcher = dialogueWatcher;
 
+        RespectCloseHotkey = false;
+        DisableWindowSounds = true;
+
         SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(200, 50),

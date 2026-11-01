@@ -107,6 +107,11 @@ public class Plugin : IDalamudPlugin
             HelpMessage = "開啟設定 (/tataru), 開關字幕 (/tataru toggle), 或切換引擎 (/tataru LMS / /tataru gemini)"
         });
 
+        // 允許視窗在過場動畫 (Cutscene) 及遊戲 UI 隱藏狀態下保持繪製與顯示
+        PluginInterface.UiBuilder.DisableCutsceneUiHide = true;
+        PluginInterface.UiBuilder.DisableAutomaticUiHide = true;
+        PluginInterface.UiBuilder.DisableUserUiHide = true;
+
         PluginInterface.UiBuilder.Draw += DrawUI;
         PluginInterface.UiBuilder.OpenConfigUi += DrawConfigUI;
         PluginInterface.UiBuilder.OpenMainUi += DrawConfigUI;
@@ -115,7 +120,7 @@ public class Plugin : IDalamudPlugin
     private void HandleDialogueChanged(DialogueEntry entry)
     {
         // 1. Immediately display original dialogue while waiting for AI translation
-        if (Configuration.ReplaceGameTalkAddon)
+        if (Configuration.ReplaceGameTalkAddon && entry.Type == DialogueType.Talk)
         {
             overlayWindow.IsOpen = false;
             replaceOverlayWindow.UpdateDialogue(entry);

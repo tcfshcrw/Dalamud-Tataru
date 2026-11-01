@@ -33,6 +33,9 @@ public class SubtitleOverlayWindow : Window
     {
         this.config = config;
 
+        RespectCloseHotkey = false;
+        DisableWindowSounds = true;
+
         SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(200, 50),
