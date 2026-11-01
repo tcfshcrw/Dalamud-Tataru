@@ -67,13 +67,25 @@ jobs:
           "VERSION_TAG=$versionTag" >> $env:GITHUB_ENV
           "ASSEMBLY_VERSION=$assemblyVersion" >> $env:GITHUB_ENV
 
+      - name: Setup Dalamud
+        shell: pwsh
+        run: |
+          $zipPath = "$env:RUNNER_TEMP\dalamud.zip"
+          $dalamudPath = "$env:RUNNER_TEMP\dalamud"
+          Write-Host "Downloading Dalamud runtime from goatcorp..."
+          curl.exe -L "https://goatcorp.github.io/dalamud-distrib/latest.zip" -o $zipPath
+          Expand-Archive -LiteralPath $zipPath -DestinationPath $dalamudPath -Force
+          Remove-Item $zipPath
+          Write-Host "Dalamud setup completed at: $dalamudPath"
+          "DALAMUD_HOME=$dalamudPath" >> $env:GITHUB_ENV
+
       - name: Restore dependencies
         run: dotnet restore
 
       - name: Build and Package Plugin
         shell: pwsh
         run: |
-          dotnet build --configuration Release -p:Platform=x64 -p:Version=${{ env.ASSEMBLY_VERSION }} --no-restore
+          dotnet build --configuration Release -p:Platform=x64 -p:Version=${{ env.ASSEMBLY_VERSION }} -p:DalamudLibPath="$env:DALAMUD_HOME/" --no-restore
 
       - name: Update pluginmaster.json
         shell: pwsh
