@@ -87,14 +87,20 @@ jobs:
         run: |
           dotnet build --configuration Release -p:Platform=x64 -p:Version=${{ env.ASSEMBLY_VERSION }} -p:DalamudLibPath="$env:DALAMUD_HOME/" --no-restore
 
-      - name: Update pluginmaster.json
+      - name: Update pluginmaster.json and Prepare Release Artifacts
         shell: pwsh
         run: |
-          $manifestPath = "bin/Release/DalamudTataru/DalamudTataru.json"
+          $zipItem = Get-ChildItem -Path "bin" -Recurse -Filter "latest.zip" | Select-Object -First 1
+          if (-not $zipItem) {
+              throw "latest.zip was not found anywhere in bin/!"
+          }
+          $packageDir = $zipItem.DirectoryName
+          $manifestPath = Join-Path $packageDir "DalamudTataru.json"
           if (-not (Test-Path $manifestPath)) {
-              throw "DalamudTataru.json not found in output directory!"
+              throw "DalamudTataru.json not found at $manifestPath!"
           }
 
+          Write-Host "Found build package directory at: $packageDir"
           $manifest = Get-Content $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
           $timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString()
 
@@ -121,8 +127,14 @@ jobs:
           $masterList = @($pluginEntry)
           $jsonContent = ConvertTo-Json $masterList -Depth 10
 
+          # Write to repo root
           [System.IO.File]::WriteAllText("pluginmaster.json", $jsonContent, [System.Text.Encoding]::UTF8)
-          [System.IO.File]::WriteAllText("bin/Release/DalamudTataru/pluginmaster.json", $jsonContent, [System.Text.Encoding]::UTF8)
+
+          # Prepare release-artifacts folder
+          New-Item -ItemType Directory -Force -Path "release-artifacts" | Out-Null
+          Copy-Item -Path $zipItem.FullName -Destination "release-artifacts/latest.zip"
+          Copy-Item -Path $manifestPath -Destination "release-artifacts/DalamudTataru.json"
+          [System.IO.File]::WriteAllText("release-artifacts/pluginmaster.json", $jsonContent, [System.Text.Encoding]::UTF8)
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -145,9 +157,9 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            bin/Release/DalamudTataru/latest.zip
-            bin/Release/DalamudTataru/DalamudTataru.json
-            bin/Release/DalamudTataru/pluginmaster.json
+            release-artifacts/latest.zip
+            release-artifacts/DalamudTataru.json
+            release-artifacts/pluginmaster.json
 
       - name: Commit and push updated pluginmaster.json
         shell: pwsh
