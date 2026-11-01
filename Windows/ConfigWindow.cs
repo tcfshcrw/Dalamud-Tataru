@@ -421,6 +421,15 @@ public class ConfigWindow : Window
         }
 
         ImGui.Spacing();
+        var replaceTalk = config.ReplaceGameTalkAddon;
+        if (ImGui.Checkbox("原生對話框覆蓋模式：覆蓋遊戲對話框位置並隱藏原版泡泡框 (保留日文雙語輸出)", ref replaceTalk))
+        {
+            config.ReplaceGameTalkAddon = replaceTalk;
+            config.Save();
+        }
+        ImGui.TextDisabled("啟用後，遊戲原生的 NPC 對話泡泡將被完全隱藏，由 Tataru 字幕視窗取而代之覆蓋於原位置，並同時顯示中文譯文與日文原文。依然可正常滑鼠點擊或空白鍵推進對話。");
+
+        ImGui.Spacing();
         ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "視窗控制");
         ImGui.Separator();
         ImGui.Spacing();
@@ -473,6 +482,7 @@ public class ConfigWindow : Window
         ImGui.Text("指令：");
         ImGui.BulletText("/tataru 或 /tataru config - 開啟設定視窗");
         ImGui.BulletText("/tataru toggle - 開關字幕懸浮視窗");
+        ImGui.BulletText("/tataru replace [on|off] - 開關原生對話框覆蓋模式（隱藏原版泡泡並雙語顯示）");
         ImGui.BulletText("/tataru lms [on|off] - 開關或切換至 LM Studio 本地模型 (/tataru LMS)");
         ImGui.BulletText("/tataru gemini [on|off] - 開關或切換至 Gemini AI");
         ImGui.BulletText("/tataru clearcache - 清除所有翻譯暫存快取");
@@ -490,10 +500,12 @@ public class ConfigWindow : Window
             {
                 var (success, hasUpdated, msg) = await glossary.UpdateGlossariesFromTataruAsync(forceReload: true);
                 glossaryStatus = success ? $"✔ {msg}" : $"❌ 更新失敗：{msg}";
+                Plugin.ChatGui.Print($"[Tataru] {msg}");
             }
             catch (Exception ex)
             {
                 glossaryStatus = $"❌ 更新失敗：{ex.Message}";
+                Plugin.ChatGui.Print($"[Tataru] 文本庫更新失敗：{ex.Message}");
             }
             finally
             {

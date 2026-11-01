@@ -32,7 +32,7 @@ public class Configuration : IPluginConfiguration
     public string LmStudioApiKey { get; set; } = string.Empty;
 
     // Glossary
-    public bool AutoUpdateGlossary { get; set; } = false;
+    public bool AutoUpdateGlossary { get; set; } = true;
 
     // Hook Toggles
     public bool TranslateTalk { get; set; } = true;
@@ -40,6 +40,7 @@ public class Configuration : IPluginConfiguration
     public bool TranslateSubtitle { get; set; } = true;
 
     // UI Overlay Settings
+    public bool ReplaceGameTalkAddon { get; set; } = false;
     public bool ShowOriginalText { get; set; } = false;
     public bool ShowSpeaker { get; set; } = true;
     public float FontScale { get; set; } = 1.0f;

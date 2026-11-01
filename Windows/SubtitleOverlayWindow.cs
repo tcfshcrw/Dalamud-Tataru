@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Dalamud.Interface.Windowing;
 using DalamudTataru.Models;
+using DalamudTataru.Services;
 using Dalamud.Bindings.ImGui;
 
 namespace DalamudTataru.Windows;
@@ -9,18 +10,20 @@ namespace DalamudTataru.Windows;
 public class SubtitleOverlayWindow : Window
 {
     private readonly Configuration config;
+    private readonly DialogueWatcher dialogueWatcher;
     private DialogueEntry? currentEntry;
     private DateTime lastUpdateTime = DateTime.MinValue;
     private bool isDialogueActive = false;
 
     public bool IsConfigOpen { get; set; } = false;
 
-    public SubtitleOverlayWindow(Configuration config) 
+    public SubtitleOverlayWindow(Configuration config, DialogueWatcher dialogueWatcher) 
         : base("Tataru 字幕視窗 (開啟設定時可拖曳調整)###TataruSubtitleOverlay", 
             ImGuiWindowFlags.NoScrollbar | 
             ImGuiWindowFlags.NoFocusOnAppearing)
     {
         this.config = config;
+        this.dialogueWatcher = dialogueWatcher;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -60,6 +63,8 @@ public class SubtitleOverlayWindow : Window
         {
             // Title bar visible, freely movable and resizable, mouse clickable
             Flags = ImGuiWindowFlags.NoScrollbar;
+            PositionCondition = ImGuiCond.FirstUseEver;
+            SizeCondition = ImGuiCond.FirstUseEver;
         }
         else
         {
@@ -70,6 +75,22 @@ public class SubtitleOverlayWindow : Window
             if (config.LockOverlay)
             {
                 Flags |= ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize;
+            }
+
+            if (config.ReplaceGameTalkAddon && isDialogueActive && currentEntry?.Type == DialogueType.Talk && dialogueWatcher.TalkAddonPosition.HasValue)
+            {
+                Position = dialogueWatcher.TalkAddonPosition.Value;
+                if (dialogueWatcher.TalkAddonSize.HasValue)
+                {
+                    Size = dialogueWatcher.TalkAddonSize.Value;
+                }
+                PositionCondition = ImGuiCond.Always;
+                SizeCondition = ImGuiCond.Always;
+            }
+            else
+            {
+                PositionCondition = ImGuiCond.FirstUseEver;
+                SizeCondition = ImGuiCond.FirstUseEver;
             }
 
             // Auto-hide check
@@ -106,7 +127,7 @@ public class SubtitleOverlayWindow : Window
 
             ImGui.TextColored(config.TextColor, "冒險者大人，設定視窗開啟中！\n此時字幕視窗常駐顯示，您可以拖曳移動位置或調整大小。\n關閉設定視窗後，視窗將自動開啟「滑鼠點擊穿透」。");
 
-            if (config.ShowOriginalText)
+            if (config.ShowOriginalText || config.ReplaceGameTalkAddon)
             {
                 ImGui.Spacing();
                 ImGui.TextColored(config.OriginalTextColor, "冒険者さん、設定ウィンドウが開いていまっす！");
@@ -133,7 +154,14 @@ public class SubtitleOverlayWindow : Window
 
             if (!string.IsNullOrEmpty(speaker))
             {
-                ImGui.TextColored(config.SpeakerColor, $"【{speaker}】");
+                if ((config.ShowOriginalText || config.ReplaceGameTalkAddon) && !string.IsNullOrEmpty(currentEntry.Speaker) && currentEntry.Speaker != speaker)
+                {
+                    ImGui.TextColored(config.SpeakerColor, $"【{speaker} ({currentEntry.Speaker})】");
+                }
+                else
+                {
+                    ImGui.TextColored(config.SpeakerColor, $"【{speaker}】");
+                }
             }
         }
 
@@ -148,7 +176,7 @@ public class SubtitleOverlayWindow : Window
         }
 
         // 3. Original Japanese Text
-        if (config.ShowOriginalText && !string.IsNullOrEmpty(currentEntry.OriginalText))
+        if ((config.ShowOriginalText || config.ReplaceGameTalkAddon) && !string.IsNullOrEmpty(currentEntry.OriginalText))
         {
             ImGui.Spacing();
             ImGui.TextColored(config.OriginalTextColor, currentEntry.OriginalText);

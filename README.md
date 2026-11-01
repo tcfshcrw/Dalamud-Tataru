@@ -77,6 +77,7 @@ Dalumud-Tataru/
 | :--- | :--- |
 | `/tataru` 或 `/tataru config` | 開啟 / 關閉設定視窗 |
 | `/tataru toggle` | 開啟 / 關閉字幕視窗（可用於手動調整視窗位置） |
+| `/tataru replace` | 開關原生對話框覆蓋模式（隱藏原版泡泡並雙語顯示，支援 `on`/`off`） |
 | `/tataru gemini on` | 切換主翻譯引擎為 Gemini |
 | `/tataru gemini off` | 切換主翻譯引擎為有道 (Youdao) |
 | `/tataru LMS` | 開關或切換主翻譯引擎為 LM Studio 本地模型（支援 `/tataru LMS on` / `/tataru LMS off`） |

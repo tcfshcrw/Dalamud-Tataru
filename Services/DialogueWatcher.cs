@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Plugin.Services;
 using DalamudTataru.Models;
@@ -13,6 +14,10 @@ public unsafe class DialogueWatcher : IDisposable
     private readonly IGameGui gameGui;
     private readonly IPluginLog log;
     private readonly Configuration config;
+
+    public Vector2? TalkAddonPosition { get; private set; }
+    public Vector2? TalkAddonSize { get; private set; }
+    private bool isTalkAlphaZeroed = false;
 
     private string lastSpeaker = string.Empty;
     private string lastText = string.Empty;
@@ -43,14 +48,55 @@ public unsafe class DialogueWatcher : IDisposable
             if (!talkPtr.IsNull)
             {
                 var talkAddon = (AddonTalk*)talkPtr.Address;
-                if (talkAddon != null && talkAddon->AtkUnitBase.IsVisible)
+                if (talkAddon != null)
                 {
-                    currentVisible = true;
-                    var speaker = ReadTextNode(talkAddon->AtkTextNode220);
-                    var text = ReadTextNode(talkAddon->AtkTextNode228);
+                    if (config.ReplaceGameTalkAddon)
+                    {
+                        if (talkAddon->AtkUnitBase.Alpha != 0)
+                        {
+                            talkAddon->AtkUnitBase.Alpha = 0;
+                            isTalkAlphaZeroed = true;
+                        }
+                    }
+                    else if (isTalkAlphaZeroed)
+                    {
+                        talkAddon->AtkUnitBase.Alpha = 255;
+                        isTalkAlphaZeroed = false;
+                    }
 
-                    CheckAndEmit(DialogueType.Talk, speaker, text);
+                    if (talkAddon->AtkUnitBase.IsVisible)
+                    {
+                        currentVisible = true;
+                        var speaker = ReadTextNode(talkAddon->AtkTextNode220);
+                        var text = ReadTextNode(talkAddon->AtkTextNode228);
+
+                        if (config.ReplaceGameTalkAddon)
+                        {
+                            float scale = talkAddon->AtkUnitBase.Scale > 0 ? talkAddon->AtkUnitBase.Scale : 1.0f;
+                            float width = talkAddon->AtkUnitBase.RootNode != null ? talkAddon->AtkUnitBase.RootNode->Width * scale : 600f;
+                            float height = talkAddon->AtkUnitBase.RootNode != null ? talkAddon->AtkUnitBase.RootNode->Height * scale : 140f;
+                            TalkAddonPosition = new Vector2(talkAddon->AtkUnitBase.X, talkAddon->AtkUnitBase.Y);
+                            TalkAddonSize = new Vector2(width, height);
+                        }
+                        else
+                        {
+                            TalkAddonPosition = null;
+                            TalkAddonSize = null;
+                        }
+
+                        CheckAndEmit(DialogueType.Talk, speaker, text);
+                    }
+                    else
+                    {
+                        TalkAddonPosition = null;
+                        TalkAddonSize = null;
+                    }
                 }
+            }
+            else
+            {
+                TalkAddonPosition = null;
+                TalkAddonSize = null;
             }
         }
 
@@ -215,5 +261,26 @@ public unsafe class DialogueWatcher : IDisposable
     public void Dispose()
     {
         this.framework.Update -= OnFrameworkUpdate;
+
+        if (isTalkAlphaZeroed)
+        {
+            try
+            {
+                var talkPtr = gameGui.GetAddonByName("Talk");
+                if (!talkPtr.IsNull)
+                {
+                    var talkAddon = (AddonTalk*)talkPtr.Address;
+                    if (talkAddon != null)
+                    {
+                        talkAddon->AtkUnitBase.Alpha = 255;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore addon restore error on disposal
+            }
+            isTalkAlphaZeroed = false;
+        }
     }
 }

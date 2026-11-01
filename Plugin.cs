@@ -46,7 +46,11 @@ public class Plugin : IDalamudPlugin
         lmStudioTranslator = new LmStudioTranslator(Configuration, glossaryManager, PluginLog);
         translator = new GeminiTranslator(Configuration, glossaryManager, youdaoTranslator, googleTranslator, lmStudioTranslator, PluginLog);
 
-        overlayWindow = new SubtitleOverlayWindow(Configuration);
+        dialogueWatcher = new DialogueWatcher(Framework, GameGui, PluginLog, Configuration);
+        dialogueWatcher.OnDialogueChanged += HandleDialogueChanged;
+        dialogueWatcher.OnDialogueClosed += HandleDialogueClosed;
+
+        overlayWindow = new SubtitleOverlayWindow(Configuration, dialogueWatcher);
         configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, glossaryManager);
 
         WindowSystem.AddWindow(overlayWindow);
@@ -66,6 +70,14 @@ public class Plugin : IDalamudPlugin
                         {
                             ChatGui.Print($"[Tataru] 檢測到新文本庫並已自動更新！{msg}");
                         }
+                        else
+                        {
+                            ChatGui.Print($"[Tataru] {msg}");
+                        }
+                    }
+                    else
+                    {
+                        PluginLog.Warning($"Tataru 文本庫檢查失敗：{msg}");
                     }
                 }
                 catch (Exception ex)
@@ -74,10 +86,6 @@ public class Plugin : IDalamudPlugin
                 }
             });
         }
-
-        dialogueWatcher = new DialogueWatcher(Framework, GameGui, PluginLog, Configuration);
-        dialogueWatcher.OnDialogueChanged += HandleDialogueChanged;
-        dialogueWatcher.OnDialogueClosed += HandleDialogueClosed;
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
@@ -221,10 +229,25 @@ public class Plugin : IDalamudPlugin
                 ChatGui.Print($"[Tataru] 已成功清除 {clearedCount} 筆翻譯暫存快取。");
                 break;
 
+            case "replace":
+                if (parts.Length > 1)
+                {
+                    var state = parts[1].ToLowerInvariant();
+                    Configuration.ReplaceGameTalkAddon = state is "on" or "1" or "true";
+                }
+                else
+                {
+                    Configuration.ReplaceGameTalkAddon = !Configuration.ReplaceGameTalkAddon;
+                }
+                Configuration.Save();
+                ChatGui.Print($"[Tataru] 原生對話框覆蓋模式已切換為：{(Configuration.ReplaceGameTalkAddon ? "開啟 (隱藏原生泡泡並雙語顯示)" : "關閉")}");
+                break;
+
             case "help":
                 ChatGui.Print("[Tataru] 指令說明：");
                 ChatGui.Print("  /tataru - 開啟或關閉設定視窗");
                 ChatGui.Print("  /tataru toggle - 開啟或關閉字幕懸浮窗");
+                ChatGui.Print("  /tataru replace [on|off] - 開關原生對話框覆蓋模式（隱藏原版泡泡並雙語顯示）");
                 ChatGui.Print("  /tataru LMS [on|off] - 開關或切換主引擎為 LM Studio 本地模型");
                 ChatGui.Print("  /tataru gemini [on|off] - 開關或切換主引擎為 Gemini");
                 ChatGui.Print("  /tataru clearcache - 清除所有翻譯暫存快取");
