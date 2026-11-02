@@ -333,7 +333,7 @@ public class ConfigWindow : Window
         }
         else if (config.PrimaryEngine == TranslationEngine.Youdao)
         {
-            ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), "✔ 目前已啟用「有道翻譯」作為主要引擎（免 API Key，直接即開即用）。");
+            ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), "[已啟用] 目前已啟用「有道翻譯」作為主要引擎（免 API Key，直接即開即用）。");
             ImGui.Spacing();
             if (ImGui.CollapsingHeader("Gemini API 選填設定 (供切換或備用)"))
             {
@@ -356,7 +356,7 @@ public class ConfigWindow : Window
         }
         else if (config.PrimaryEngine == TranslationEngine.Google)
         {
-            ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), "✔ 目前已啟用「Google 翻譯」作為主要引擎（免 API Key，穩定迅速）。");
+            ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), "[已啟用] 目前已啟用「Google 翻譯」作為主要引擎（免 API Key，穩定迅速）。");
             ImGui.Spacing();
             if (ImGui.CollapsingHeader("Gemini API 選填設定 (供切換或備用)"))
             {
@@ -527,7 +527,7 @@ public class ConfigWindow : Window
 
         if (glossaryEditorWindow != null)
         {
-            if (ImGui.Button("📑 開啟自訂名詞對照表編輯器 (獨立視窗)", new Vector2(-1, 32)))
+            if (ImGui.Button("開啟自訂名詞對照表編輯器 (獨立視窗)", new Vector2(-1, 32)))
             {
                 glossaryEditorWindow.IsOpen = true;
                 glossaryEditorWindow.BringToFront();
@@ -558,11 +558,11 @@ public class ConfigWindow : Window
         bool isCustom = !string.IsNullOrWhiteSpace(config.CustomSystemPrompt);
         if (isCustom)
         {
-            ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), "● 目前狀態：已啟用自訂提示詞 (Custom Prompt Active)");
+            ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), "[自訂] 目前狀態：已啟用自訂提示詞 (Custom Prompt Active)");
         }
         else
         {
-            ImGui.TextColored(new Vector4(0.7f, 0.7f, 0.7f, 1.0f), "○ 目前狀態：使用 Tataru 官方預設提示詞 (Default)");
+            ImGui.TextColored(new Vector4(0.7f, 0.7f, 0.7f, 1.0f), "[預設] 目前狀態：使用 Tataru 官方預設提示詞 (Default)");
         }
         ImGui.TextDisabled("提示詞用於指導 Gemini 或本地 LM Studio 模型如何理解遊戲語境、角色性格與輸出格式。");
         ImGui.Spacing();
@@ -908,11 +908,16 @@ public class ConfigWindow : Window
                 }
                 config.Save();
             }
-            ImGui.TextDisabled("完整保留遊戲原生繪製的泡泡底圖與翻頁游標，僅精準隱藏日文文字節點，由 Tataru 以透明背景直接覆蓋深色中文譯文。");
+            ImGui.TextDisabled("完整保留遊戲原生繪製的泡泡底圖與翻頁游標，僅精準隱藏日文文字節點。已支援智慧底色偵測：淺色底以黑色文字顯示，深色底（暗黑劇情/UI深色主題）自動以白色文字顯示！");
+
+            if (config.ReplaceUseNativeBubble)
+            {
+                ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), $"[底色偵測] 當前原生泡泡底色狀態：{(dialogueWatcher.IsTalkBubbleDark ? "深色底（自動以白色顯示文字）" : "淺色米白底（自動以黑色顯示文字）")}");
+            }
 
             if (!config.ReplaceUseParchmentTheme && !config.ReplaceUseNativeBubble)
             {
-                ImGui.TextColored(new Vector4(1.0f, 0.85f, 0.35f, 1.0f), "ℹ️ 目前兩者皆未勾選：套用經典深色半透明科技懸浮風。");
+                ImGui.TextColored(new Vector4(1.0f, 0.85f, 0.35f, 1.0f), "[提示] 目前兩者皆未勾選：套用經典深色半透明科技懸浮風。");
             }
             ImGui.Spacing();
 
@@ -966,7 +971,7 @@ public class ConfigWindow : Window
             }
 
             ImGui.Spacing();
-            ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), "💡 覆蓋視窗尺寸與位置調整方式：");
+            ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), "【覆蓋視窗尺寸與位置調整方式】");
             ImGui.TextDisabled("此設定視窗開啟時，畫面上的【Tataru 原生對話覆蓋視窗】會常駐顯示。\n您可以直接用滑鼠拖動它至 NPC 對話框位置，並拉伸邊框至所需大小，遊戲會自動永久記憶！");
 
             ImGui.Unindent();
@@ -977,7 +982,7 @@ public class ConfigWindow : Window
         ImGui.Separator();
         ImGui.Spacing();
 
-        ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), "💡 貼心設計：只要開啟設定視窗，字幕視窗便會永遠常駐顯示，方便您拖曳定位與調整大小；關閉設定視窗後，將自動啟動滑鼠點擊穿透 (Click-Through)，完全不干擾遊戲戰鬥與點擊。");
+        ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), "【說明】只要開啟設定視窗，字幕視窗便會永遠常駐顯示，方便您拖曳定位與調整大小；關閉設定視窗後，將自動啟動滑鼠點擊穿透 (Click-Through)，完全不干擾遊戲戰鬥與點擊。");
         ImGui.Spacing();
 
         var lockOverlay = config.LockOverlay;
@@ -1076,12 +1081,12 @@ public class ConfigWindow : Window
             try
             {
                 var (success, hasUpdated, msg) = await glossary.UpdateGlossariesFromTataruAsync(forceReload: true);
-                glossaryStatus = success ? $"✔ {msg}" : $"❌ 更新失敗：{msg}";
+                glossaryStatus = success ? $"[OK] {msg}" : $"[失敗] 更新失敗：{msg}";
                 Plugin.ChatGui.Print($"[Tataru] Glossary: {(success ? (hasUpdated ? "Updated to latest version." : "Already up to date.") : $"Update failed: {msg}")}");
             }
             catch (Exception ex)
             {
-                glossaryStatus = $"❌ 更新失敗：{ex.Message}";
+                glossaryStatus = $"[失敗] 更新失敗：{ex.Message}";
                 Plugin.ChatGui.Print($"[Tataru] Glossary update error: {ex.Message}");
             }
             finally
@@ -1267,7 +1272,7 @@ public class ConfigWindow : Window
         if (glossaryEditorWindow != null)
         {
             ImGui.Spacing();
-            if (ImGui.Button("📑 在獨立視窗中開啟自訂名詞對照表編輯器 (Pop-out Editor Window)", new Vector2(-1, 36)))
+            if (ImGui.Button("在獨立視窗中開啟自訂名詞對照表編輯器 (Pop-out Editor Window)", new Vector2(-1, 36)))
             {
                 glossaryEditorWindow.IsOpen = true;
                 glossaryEditorWindow.BringToFront();
@@ -1304,17 +1309,17 @@ public class ConfigWindow : Window
         ImGui.Spacing();
 
         // 2. Action Toolbar
-        if (ImGui.Button("➕ 新增對照項目", new Vector2(130, 28)))
+        if (ImGui.Button("+ 新增對照項目", new Vector2(130, 28)))
         {
             StartNewGlossaryEntry();
         }
         ImGui.SameLine();
-        if (ImGui.Button("⚡ 載入經典預設範本", new Vector2(145, 28)))
+        if (ImGui.Button("載入經典預設範本", new Vector2(145, 28)))
         {
             LoadPresetGlossaryEntries();
         }
         ImGui.SameLine();
-        if (ImGui.Button(showImportExportSection ? "關閉匯入/匯出" : "📥 匯入 / 📤 匯出", new Vector2(130, 28)))
+        if (ImGui.Button(showImportExportSection ? "關閉匯入/匯出" : "匯入 / 匯出", new Vector2(130, 28)))
         {
             showImportExportSection = !showImportExportSection;
             importExportStatus = string.Empty;
@@ -1322,7 +1327,7 @@ public class ConfigWindow : Window
         ImGui.SameLine();
         if (!showClearAllConfirm)
         {
-            if (ImGui.Button("🗑️ 清空清單", new Vector2(100, 28)))
+            if (ImGui.Button("清空清單", new Vector2(100, 28)))
             {
                 showClearAllConfirm = true;
             }
@@ -1349,7 +1354,7 @@ public class ConfigWindow : Window
 
         // 3. Search Bar
         ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - 85);
-        ImGui.InputTextWithHint("##GlossarySearch", "🔍 快速過濾日文 / 英文 / 繁中 / 簡中 / 備註...", ref glossarySearchFilter, 100);
+        ImGui.InputTextWithHint("##GlossarySearch", "快速過濾日文 / 英文 / 繁中 / 簡中 / 備註...", ref glossarySearchFilter, 100);
         ImGui.SameLine();
         if (ImGui.Button("清除搜尋", new Vector2(75, 0)))
         {
@@ -1431,22 +1436,22 @@ public class ConfigWindow : Window
         ImGui.Spacing();
 
         // Auto copy helper buttons
-        if (ImGui.Button("繁中 ➜ 簡中", new Vector2(110, 24)))
+        if (ImGui.Button("繁中 -> 簡中", new Vector2(110, 24)))
         {
             if (!string.IsNullOrWhiteSpace(editCht)) editChs = editCht;
         }
         ImGui.SameLine();
-        if (ImGui.Button("簡中 ➜ 繁中", new Vector2(110, 24)))
+        if (ImGui.Button("簡中 -> 繁中", new Vector2(110, 24)))
         {
             if (!string.IsNullOrWhiteSpace(editChs)) editCht = editChs;
         }
         ImGui.SameLine();
-        if (ImGui.Button("日文 ➜ 英文", new Vector2(110, 24)))
+        if (ImGui.Button("日文 -> 英文", new Vector2(110, 24)))
         {
             if (!string.IsNullOrWhiteSpace(editJp)) editEn = editJp;
         }
         ImGui.SameLine();
-        if (ImGui.Button("英文 ➜ 日文", new Vector2(110, 24)))
+        if (ImGui.Button("英文 -> 日文", new Vector2(110, 24)))
         {
             if (!string.IsNullOrWhiteSpace(editEn)) editJp = editEn;
         }
@@ -1473,12 +1478,12 @@ public class ConfigWindow : Window
 
         ImGui.Spacing();
 
-        if (ImGui.Button("💾 儲存並套用", new Vector2(120, 30)))
+        if (ImGui.Button("儲存並套用", new Vector2(120, 30)))
         {
             SaveCurrentEditEntry();
         }
         ImGui.SameLine();
-        if (ImGui.Button("❌ 取消", new Vector2(90, 30)))
+        if (ImGui.Button("取消", new Vector2(90, 30)))
         {
             isEditingGlossary = false;
             editorValidationMsg = string.Empty;
@@ -1503,7 +1508,7 @@ public class ConfigWindow : Window
 
         if (filtered.Count == 0)
         {
-            ImGui.TextDisabled(string.IsNullOrEmpty(filter) ? "目前尚無任何自訂對照項目。點擊上方「➕ 新增對照項目」或「⚡ 載入經典預設範本」開始建立！" : "找不到符合搜尋條件的對照項目。");
+            ImGui.TextDisabled(string.IsNullOrEmpty(filter) ? "目前尚無任何自訂對照項目。點擊上方「+ 新增對照項目」或「載入經典預設範本」開始建立！" : "找不到符合搜尋條件的對照項目。");
             return;
         }
 
@@ -1658,14 +1663,14 @@ public class ConfigWindow : Window
         ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "【自訂對照表 匯入 / 匯出】");
         ImGui.Spacing();
 
-        if (ImGui.Button("📋 匯出為 JSON 到文字框", new Vector2(170, 26)))
+        if (ImGui.Button("匯出為 JSON 到文字框", new Vector2(170, 26)))
         {
             var options = new JsonSerializerOptions { WriteIndented = true };
             importExportBuffer = JsonSerializer.Serialize(config.CustomGlossaryEntries, options);
             importExportStatus = $"已匯出 {config.CustomGlossaryEntries.Count} 筆對照為 JSON 格式。";
         }
         ImGui.SameLine();
-        if (ImGui.Button("📋 匯出為 CSV 到文字框", new Vector2(170, 26)))
+        if (ImGui.Button("匯出為 CSV 到文字框", new Vector2(170, 26)))
         {
             var sb = new StringBuilder();
             sb.AppendLine("Japanese,English,TraditionalChinese,SimplifiedChinese,MatchSpeaker,MatchDialogue,Notes");
@@ -1682,12 +1687,12 @@ public class ConfigWindow : Window
         ImGui.InputTextMultiline("##ImportExportBuffer", ref importExportBuffer, 100000, new Vector2(-1, 140));
 
         ImGui.Spacing();
-        if (ImGui.Button("📥 從上方文字框匯入 (合併模式)", new Vector2(210, 28)))
+        if (ImGui.Button("從上方文字框匯入 (合併模式)", new Vector2(210, 28)))
         {
             ExecuteImport(false);
         }
         ImGui.SameLine();
-        if (ImGui.Button("📥 從上方文字框匯入 (覆蓋模式)", new Vector2(210, 28)))
+        if (ImGui.Button("從上方文字框匯入 (覆蓋模式)", new Vector2(210, 28)))
         {
             ExecuteImport(true);
         }
@@ -1703,7 +1708,7 @@ public class ConfigWindow : Window
 
     private void DrawLiveGlossaryTester()
     {
-        ImGui.TextColored(new Vector4(1.0f, 0.85f, 0.35f, 1.0f), "🧪 即時對照規則測試器 (Live Tester)");
+        ImGui.TextColored(new Vector4(1.0f, 0.85f, 0.35f, 1.0f), "即時對照規則測試器 (Live Tester)");
         ImGui.TextDisabled("輸入測試的說話者姓名與日文/英文對話台詞，驗證您的自訂對照表是否能正確被取代與匹配。");
         ImGui.Spacing();
 
@@ -1725,7 +1730,7 @@ public class ConfigWindow : Window
         ImGui.InputText("##TestDialogueInput", ref testDialogueInput, 200);
 
         ImGui.Spacing();
-        if (ImGui.Button("🚀 執行即時對照測試", new Vector2(160, 28)))
+        if (ImGui.Button("執行即時對照測試", new Vector2(160, 28)))
         {
             testResultSpeaker = glossary.TranslateSpeaker(testSpeakerInput, testTargetLang);
             testResultDialogue = glossary.ApplyPostTranslation(testDialogueInput, testTargetLang);

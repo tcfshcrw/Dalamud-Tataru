@@ -187,7 +187,6 @@ public class DialogueReplaceOverlayWindow : Window
 
         try
         {
-            bool useDarkText = config.ReplaceUseNativeBubble || config.ReplaceUseParchmentTheme;
             var scale = Math.Clamp(config.ReplaceFontScale, 0.5f, 3.0f);
             ImGui.SetWindowFontScale(scale);
 
@@ -212,14 +211,41 @@ public class DialogueReplaceOverlayWindow : Window
                 drawList.AddRect(min + new Vector2(2, 2), max - new Vector2(2, 2), innerBorderColor, 14.0f, ImDrawFlags.None, 1.0f);
             }
 
-            var textColor = useDarkText ? new Vector4(0.10f, 0.08f, 0.06f, 1.0f) : config.TextColor;
-            var origTextColor = useDarkText ? new Vector4(0.42f, 0.38f, 0.34f, 1.0f) : config.OriginalTextColor;
+            Vector4 textColor;
+            Vector4 origTextColor;
+
+            if (config.ReplaceUseNativeBubble)
+            {
+                // 方案 B：動態偵測原生泡泡框底色。深色底自動以白色顯示文字，淺色底以黑色顯示文字
+                if (dialogueWatcher.IsTalkBubbleDark)
+                {
+                    textColor = new Vector4(0.96f, 0.96f, 0.96f, 1.0f);     // 白色文字
+                    origTextColor = new Vector4(0.72f, 0.72f, 0.75f, 1.0f); // 淡銀灰白原文
+                }
+                else
+                {
+                    textColor = new Vector4(0.10f, 0.08f, 0.06f, 1.0f);     // 黑色文字
+                    origTextColor = new Vector4(0.42f, 0.38f, 0.34f, 1.0f); // 深灰褐原文
+                }
+            }
+            else if (config.ReplaceUseParchmentTheme)
+            {
+                // 方案 A：Tataru 繪製米白象牙羊皮紙底框，使用黑色文字
+                textColor = new Vector4(0.10f, 0.08f, 0.06f, 1.0f);
+                origTextColor = new Vector4(0.42f, 0.38f, 0.34f, 1.0f);
+            }
+            else
+            {
+                // 現代深色半透明模式：使用設定中配置的自訂文字顏色
+                textColor = config.TextColor;
+                origTextColor = config.OriginalTextColor;
+            }
 
             // When config is open and there is no active in-game dialogue, show an interactive preview
             if (IsConfigOpen && (!isDialogueActive || currentEntry == null))
             {
                 string modeDesc = config.ReplaceUseNativeBubble 
-                    ? "【原生泡泡底圖模式 (方案 B)】預覽中！\n遊戲原版米白泡泡框與金箭頭將完整保留，僅替換內文字體。"
+                    ? $"【原生泡泡底圖模式 (方案 B)】預覽中！\n遊戲原版泡泡框與金箭頭將完整保留，底色偵測：{(dialogueWatcher.IsTalkBubbleDark ? "【深色底 -> 自動白色文字】" : "【淺色底 -> 自動黑色文字】")}。"
                     : config.ReplaceUseParchmentTheme 
                         ? "【Tataru 仿原版羊皮紙風格 (方案 A)】預覽中！\n米白象牙色底框 + 復古深褐邊框，支援滑鼠任意拉伸大小。"
                         : "【現代深色半透明模式】預覽中！";

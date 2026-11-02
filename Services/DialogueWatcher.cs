@@ -17,6 +17,7 @@ public unsafe class DialogueWatcher : IDisposable
 
     public Vector2? TalkAddonPosition { get; private set; }
     public Vector2? TalkAddonSize { get; private set; }
+    public bool IsTalkBubbleDark { get; private set; } = false;
     private bool isTalkAlphaZeroed = false;
     private bool isTalkTextNodeHidden = false;
 
@@ -93,6 +94,7 @@ public unsafe class DialogueWatcher : IDisposable
                         if (!string.IsNullOrWhiteSpace(text))
                         {
                             currentVisible = true;
+                            IsTalkBubbleDark = DetectIsTalkBubbleDark(talkAddon);
 
                             if (config.ReplaceGameTalkAddon)
                             {
@@ -329,6 +331,7 @@ public unsafe class DialogueWatcher : IDisposable
 
     public void RestoreTalkAddonState()
     {
+        IsTalkBubbleDark = false;
         if (isTalkAlphaZeroed || isTalkTextNodeHidden)
         {
             try
@@ -499,6 +502,73 @@ public unsafe class DialogueWatcher : IDisposable
         // Remove newlines and excess whitespace
         var cleaned = input.Replace("\r\n", " ").Replace("\n", " ").Trim();
         return cleaned;
+    }
+
+    private bool DetectIsTalkBubbleDark(AddonTalk* talkAddon)
+    {
+        if (talkAddon == null) return false;
+
+        // 1. 優先檢查原版日文對話正文文字節點 (AtkTextNode228) 的文字顏色 (TextColor)
+        // 淺色米白泡泡框 -> 原生文字為深灰/暗褐色 (Perceived Luminance <= 0.45)
+        // 深色暗黑泡泡框 (暗黑劇情/UI深色主題) -> 原生文字為亮白色/淡黃色 (Perceived Luminance > 0.5)
+        if (talkAddon->AtkTextNode228 != null)
+        {
+            var textColor = talkAddon->AtkTextNode228->TextColor;
+            if (textColor.A > 0)
+            {
+                float lum = (0.299f * textColor.R + 0.587f * textColor.G + 0.114f * textColor.B) / 255.0f;
+                if (lum > 0.5f) return true;
+                if (lum <= 0.45f && textColor.A >= 100) return false;
+            }
+        }
+
+        // 2. 輔助檢查說話者名字文字節點 (AtkTextNode220)
+        if (talkAddon->AtkTextNode220 != null)
+        {
+            var spkColor = talkAddon->AtkTextNode220->TextColor;
+            if (spkColor.A > 0)
+            {
+                float spkLum = (0.299f * spkColor.R + 0.587f * spkColor.G + 0.114f * spkColor.B) / 255.0f;
+                if (spkLum > 0.6f) return true;
+            }
+        }
+
+        // 3. 檢查 Talk Addon 的背景節點顏色與調色 (MultiplyColor)
+        try
+        {
+            var uld = &talkAddon->AtkUnitBase.UldManager;
+            if (uld != null && uld->NodeList != null)
+            {
+                for (var i = 0; i < uld->NodeListCount; i++)
+                {
+                    var node = uld->NodeList[i];
+                    if (node != null && (node->Type == NodeType.Image || node->Type == NodeType.NineGrid))
+                    {
+                        if (node->Width >= 200 && node->Height >= 50)
+                        {
+                            if (node->MultiplyRed < 90 && node->MultiplyGreen < 90 && node->MultiplyBlue < 90)
+                            {
+                                return true;
+                            }
+                            if (node->Color.A > 0)
+                            {
+                                float bgLum = (0.299f * node->Color.R + 0.587f * node->Color.G + 0.114f * node->Color.B) / 255.0f;
+                                if (bgLum < 0.35f)
+                                {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // 忽略 ULD 檢查異常
+        }
+
+        return false;
     }
 
     public void Dispose()
