@@ -102,6 +102,7 @@ public class Plugin : IDalamudPlugin
         var version = GetType().Assembly.GetName().Version;
         string versionStr = version != null ? $"v{version}" : "v1.0.0";
         string engineStr = GetEngineDisplayName(Configuration.PrimaryEngine);
+        string transStatusStr = Configuration.Enabled ? "ON" : "OFF (可輸入 /tataru on 開啟)";
 
         if (Configuration.AutoUpdateGlossary)
         {
@@ -130,7 +131,7 @@ public class Plugin : IDalamudPlugin
 
                 if (Configuration.ShowStartupNotification)
                 {
-                    ChatGui.Print($"[Tataru] {versionStr} loaded | Engine: {engineStr} | Glossary: {updateMsg}");
+                    ChatGui.Print($"[Tataru] {versionStr} loaded | Translation: {transStatusStr} | Engine: {engineStr} | Glossary: {updateMsg}");
                 }
             });
         }
@@ -138,7 +139,7 @@ public class Plugin : IDalamudPlugin
         {
             if (Configuration.ShowStartupNotification)
             {
-                ChatGui.Print($"[Tataru] {versionStr} loaded | Engine: {engineStr} | Glossary: Auto-update disabled");
+                ChatGui.Print($"[Tataru] {versionStr} loaded | Translation: {transStatusStr} | Engine: {engineStr} | Glossary: Auto-update disabled");
             }
         }
 
@@ -155,6 +156,11 @@ public class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.Draw += DrawUI;
         PluginInterface.UiBuilder.OpenConfigUi += DrawConfigUI;
         PluginInterface.UiBuilder.OpenMainUi += DrawConfigUI;
+
+        if (!Configuration.Enabled)
+        {
+            dialogueWatcher.RestoreTalkAddonState();
+        }
     }
 
     private void HandleDialogueChanged(DialogueEntry entry)
@@ -254,6 +260,10 @@ public class Plugin : IDalamudPlugin
                     }
                 }
                 SetEnabled(!Configuration.Enabled);
+                break;
+
+            case "status":
+                ChatGui.Print($"[Tataru] 當前狀態: 翻譯功能 {(Configuration.Enabled ? "開啟 (ON)" : "已關閉 (OFF)")} | 引擎: {GetEngineDisplayName(Configuration.PrimaryEngine)} | 覆蓋模式: {(Configuration.ReplaceGameTalkAddon ? "開啟" : "關閉")}");
                 break;
 
             case "toggle":
@@ -380,6 +390,7 @@ public class Plugin : IDalamudPlugin
                 ChatGui.Print("[Tataru] Commands:");
                 ChatGui.Print("  /tataru - 開啟/關閉設定視窗 (Toggle config window)");
                 ChatGui.Print("  /tataru on / off - 啟用或關閉對話翻譯與覆蓋 (Enable/disable dialogue translation)");
+                ChatGui.Print("  /tataru status - 查看當前翻譯開關與引擎狀態");
                 ChatGui.Print("  /tataru toggle - 切換字幕懸浮窗顯示狀態 (Toggle subtitle overlay)");
                 ChatGui.Print("  /tataru replace [on|off] - Toggle native dialogue replace overlay mode");
                 ChatGui.Print("  /tataru LMS [on|off] - Toggle or switch primary engine to LM Studio");

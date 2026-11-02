@@ -122,7 +122,8 @@ Dalumud-Tataru/
 
 | 指令 | 說明 |
 | :--- | :--- |
-| `/tataru on` / `/tataru off` | **開啟 / 關閉對話翻譯功能**（包含原生覆蓋與懸浮窗） |
+| `/tataru on` / `/tataru off` | **開啟 / 關閉對話翻譯功能**（狀態將永久保存，下次啟動自動套用） |
+| `/tataru status` | 查看當前翻譯開關、主翻譯引擎與視窗模式狀態 |
 | `/tataru` 或 `/tataru config` | 開啟 / 關閉主設定視窗 |
 | `/tataru glossary` 或 `/tataru dict` | 開啟 / 關閉**獨立自訂名詞對照表編輯器視窗** |
 | `/tataru toggle` | 開啟 / 關閉字幕視窗（可用於手動調整視窗位置） |
