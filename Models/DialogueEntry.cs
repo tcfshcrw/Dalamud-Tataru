@@ -31,6 +31,13 @@ public enum TranslationEngine
     Google
 }
 
+public enum DtrStatusStyle
+{
+    EmojiText,
+    IconOnly,
+    Text
+}
+
 public class DialogueEntry
 {
     public DialogueType Type { get; set; }

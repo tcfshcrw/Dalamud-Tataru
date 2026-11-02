@@ -3,6 +3,7 @@ using System.Text.Unicode;
 using System.Threading.Tasks;
 using Dalamud;
 using Dalamud.Game.Command;
+using Dalamud.Game.Gui.Dtr;
 using Dalamud.Interface;
 using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Interface.Windowing;
@@ -20,12 +21,15 @@ public class Plugin : IDalamudPlugin
     public string Name => "Tataru Native Translator";
     private const string CommandName = "/tataru";
 
+    internal static Plugin? Instance { get; private set; }
+
     [PluginService] internal static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
     [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
     [PluginService] internal static IFramework Framework { get; private set; } = null!;
     [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
     [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
     [PluginService] internal static IPluginLog PluginLog { get; private set; } = null!;
+    [PluginService] internal static IDtrBar DtrBar { get; private set; } = null!;
 
     public Configuration Configuration { get; init; }
     public WindowSystem WindowSystem { get; init; } = new("TataruPlugin");
@@ -41,9 +45,11 @@ public class Plugin : IDalamudPlugin
     private readonly DialogueReplaceOverlayWindow replaceOverlayWindow;
     private readonly GlossaryEditorWindow glossaryEditorWindow;
     private readonly ConfigWindow configWindow;
+    private readonly IDtrBarEntry? dtrEntry;
 
     public Plugin()
     {
+        Instance = this;
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Configuration.Initialize(PluginInterface);
 
@@ -161,6 +167,31 @@ public class Plugin : IDalamudPlugin
         {
             dialogueWatcher.RestoreTalkAddonState();
         }
+
+        try
+        {
+            dtrEntry = DtrBar.Get("Tataru");
+            if (dtrEntry != null)
+            {
+                dtrEntry.Shown = Configuration.ShowDtrStatus;
+                dtrEntry.OnClick = e =>
+                {
+                    if (e.ClickType == MouseClickType.Right)
+                    {
+                        SetEnabled(!Configuration.Enabled);
+                    }
+                    else
+                    {
+                        configWindow.IsOpen = !configWindow.IsOpen;
+                    }
+                };
+                UpdateDtrBar();
+            }
+        }
+        catch (Exception ex)
+        {
+            PluginLog.Warning(ex, "無法初始化 DTR 伺服器資訊列狀態條目。");
+        }
     }
 
     private void HandleDialogueChanged(DialogueEntry entry)
@@ -219,8 +250,9 @@ public class Plugin : IDalamudPlugin
         {
             ChatGui.Print("[Tataru] 對話翻譯功能已開啟 (Translation enabled)");
         }
-    }
 
+        UpdateDtrBar();
+    }
     private void OnCommand(string command, string args)
     {
         var trimmed = args.Trim();
@@ -423,6 +455,50 @@ public class Plugin : IDalamudPlugin
         Configuration.Save();
         translator.ClearCache();
         ChatGui.Print($"[Tataru] Primary translation engine switched to: {GetEngineDisplayName(engine)}");
+        UpdateDtrBar();
+    }
+
+    public void UpdateDtrBar()
+    {
+        if (dtrEntry == null) return;
+
+        try
+        {
+            dtrEntry.Shown = Configuration.ShowDtrStatus;
+            if (!Configuration.ShowDtrStatus) return;
+
+            string emoji = string.IsNullOrWhiteSpace(Configuration.DtrCustomEmoji) ? "🌐" : Configuration.DtrCustomEmoji.Trim();
+
+            dtrEntry.Text = Configuration.DtrStyle switch
+            {
+                DtrStatusStyle.EmojiText => Configuration.Enabled ? $"{emoji}: ON" : $"{emoji}: OFF",
+                DtrStatusStyle.IconOnly => Configuration.Enabled ? emoji : $"{emoji} (Off)",
+                DtrStatusStyle.Text => Configuration.Enabled ? "Tataru: ON" : "Tataru: OFF",
+                _ => Configuration.Enabled ? $"{emoji}: ON" : $"{emoji}: OFF"
+            };
+
+            var engineName = Configuration.PrimaryEngine switch
+            {
+                TranslationEngine.Gemini => $"Gemini ({Configuration.GeminiModel})",
+                TranslationEngine.LmStudio => $"LM Studio ({(!string.IsNullOrEmpty(Configuration.LmStudioModel) ? Configuration.LmStudioModel : "Default")})",
+                TranslationEngine.Youdao => "有道 (Youdao)",
+                TranslationEngine.Google => "Google Translate",
+                _ => Configuration.PrimaryEngine.ToString()
+            };
+
+            var targetLangStr = Configuration.TargetLang switch
+            {
+                TargetLanguage.TraditionalChinese => "繁體中文",
+                TargetLanguage.SimplifiedChinese => "簡體中文",
+                _ => Configuration.TargetLang.ToString()
+            };
+
+            dtrEntry.Tooltip = $"【Tataru 翻譯器】\n狀態：{(Configuration.Enabled ? "開啟 (ON)" : "關閉 (OFF)")}\n引擎：{engineName}\n目標：{targetLangStr}\n\n[左鍵] 開啟/關閉設定視窗\n[右鍵] 快速切換開關";
+        }
+        catch (Exception ex)
+        {
+            PluginLog.Warning(ex, "更新 DTR 狀態時發生例外。");
+        }
     }
 
     private void DrawUI()
@@ -462,6 +538,20 @@ public class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
+        Instance = null;
+        try
+        {
+            if (dtrEntry != null)
+            {
+                dtrEntry.Shown = false;
+                dtrEntry.Remove();
+                dtrEntry.Dispose();
+            }
+        }
+        catch (Exception ex)
+        {
+            PluginLog.Warning(ex, "釋放 DTR 條目時發生例外。");
+        }
         CommandManager.RemoveHandler(CommandName);
         PluginInterface.UiBuilder.Draw -= DrawUI;
         PluginInterface.UiBuilder.OpenConfigUi -= DrawConfigUI;

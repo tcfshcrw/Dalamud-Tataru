@@ -14,6 +14,9 @@ public class Configuration : IPluginConfiguration
 
     // Master Enable Toggle
     public bool Enabled { get; set; } = true;
+    public bool ShowDtrStatus { get; set; } = true;
+    public DtrStatusStyle DtrStyle { get; set; } = DtrStatusStyle.EmojiText;
+    public string DtrCustomEmoji { get; set; } = "🌐";
 
     // Translation Engine
     public TranslationEngine PrimaryEngine { get; set; } = TranslationEngine.Gemini;

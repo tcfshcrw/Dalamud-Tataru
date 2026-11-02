@@ -173,6 +173,7 @@ public class ConfigWindow : Window
         if (ImGui.Checkbox("啟用 Tataru 對話翻譯功能 (包含原生覆蓋與懸浮窗) [指令: /tataru on / off]", ref enabled))
         {
             config.Enabled = enabled;
+            Plugin.Instance?.UpdateDtrBar();
             config.Save();
             if (!enabled)
             {
@@ -186,6 +187,65 @@ public class ConfigWindow : Window
             ImGui.SameLine();
             ImGui.TextColored(new Vector4(1.0f, 0.4f, 0.4f, 1.0f), "[目前已關閉翻譯與覆蓋]");
         }
+
+        var showDtr = config.ShowDtrStatus;
+        if (ImGui.Checkbox("在伺服器資訊列顯示翻譯狀態 (Status / DTR Bar)", ref showDtr))
+        {
+            config.ShowDtrStatus = showDtr;
+            config.Save();
+            Plugin.Instance?.UpdateDtrBar();
+        }
+        if (config.ShowDtrStatus)
+        {
+            ImGui.Indent(20f);
+
+            ImGui.Text("狀態列顯示樣式：");
+            int styleIdx = (int)config.DtrStyle;
+            string[] styleOptions = new[]
+            {
+                "極簡圖示模式 (例: 🌐: ON / 🌐: OFF)",
+                "純圖示模式 (例: 🌐 / 🌐 (Off))",
+                "標準文字模式 (例: Tataru: ON / Tataru: OFF)"
+            };
+
+            ImGui.SetNextItemWidth(300);
+            if (ImGui.Combo("##DtrStyleCombo", ref styleIdx, styleOptions, styleOptions.Length))
+            {
+                config.DtrStyle = (DtrStatusStyle)styleIdx;
+                config.Save();
+                Plugin.Instance?.UpdateDtrBar();
+            }
+
+            if (config.DtrStyle != DtrStatusStyle.Text)
+            {
+                ImGui.Spacing();
+                ImGui.Text("翻譯 Emoji 圖示：");
+                string[] presetEmojis = new[] { "🌐", "文", "🗣️", "💬", "📖" };
+                foreach (var emoji in presetEmojis)
+                {
+                    if (ImGui.Button($"{emoji}##preset"))
+                    {
+                        config.DtrCustomEmoji = emoji;
+                        config.Save();
+                        Plugin.Instance?.UpdateDtrBar();
+                    }
+                    ImGui.SameLine();
+                }
+
+                var currentEmoji = config.DtrCustomEmoji;
+                ImGui.SetNextItemWidth(70);
+                if (ImGui.InputText("自訂 Emoji##CustomDtrEmoji", ref currentEmoji, 16))
+                {
+                    config.DtrCustomEmoji = currentEmoji.Trim();
+                    config.Save();
+                    Plugin.Instance?.UpdateDtrBar();
+                }
+            }
+
+            ImGui.Unindent(20f);
+        }
+
+        ImGui.TextDisabled("於遊戲伺服器資訊列顯示精簡狀態，左鍵點擊可開啟設定，右鍵可切換開關。");
         ImGui.Spacing();
         ImGui.Separator();
         ImGui.Spacing();
@@ -208,6 +268,7 @@ public class ConfigWindow : Window
         if (ImGui.Combo("##PrimaryEngine", ref currentEngineIdx, engineNames, engineNames.Length))
         {
             config.PrimaryEngine = (TranslationEngine)currentEngineIdx;
+            Plugin.Instance?.UpdateDtrBar();
             config.Save();
             translator.ClearCache();
         }
@@ -253,6 +314,7 @@ public class ConfigWindow : Window
                 if (currentModelIdx < models.Length - 1)
                 {
                     config.GeminiModel = models[currentModelIdx];
+                    Plugin.Instance?.UpdateDtrBar();
                     config.Save();
                 }
             }
@@ -408,6 +470,7 @@ public class ConfigWindow : Window
         if (ImGui.Combo("##TargetLangCombo", ref targetLangIdx, languages, languages.Length))
         {
             config.TargetLang = (TargetLanguage)targetLangIdx;
+            Plugin.Instance?.UpdateDtrBar();
             config.Save();
             translator.ClearCache();
         }
