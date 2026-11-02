@@ -332,6 +332,12 @@ public class GeminiTranslator : IDisposable
                 .Replace("{sourceLang}", sourceLangStr)
                 .Replace("{sourceLanguage}", sourceLangStr);
 
+            var glossaryRules = glossary.GetCustomGlossaryPrompt(speaker, text, config.TargetLang);
+            if (!string.IsNullOrEmpty(glossaryRules))
+            {
+                systemPrompt += glossaryRules;
+            }
+
             var model = string.IsNullOrWhiteSpace(config.GeminiModel) ? "gemini-3.8-flash" : config.GeminiModel.Trim();
             var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={config.GeminiApiKey.Trim()}";
 

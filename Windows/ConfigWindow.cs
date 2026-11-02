@@ -1,6 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Interface.Windowing;
@@ -21,6 +25,7 @@ public class ConfigWindow : Window
     private readonly DialogueReplaceOverlayWindow replaceOverlayWindow;
     private readonly DialogueWatcher dialogueWatcher;
     private readonly GlossaryManager glossary;
+    private readonly GlossaryEditorWindow? glossaryEditorWindow;
     private readonly IFontHandle? fontHandle;
 
     private bool showApiKey = false;
@@ -38,6 +43,31 @@ public class ConfigWindow : Window
     private string promptTestText = "お前が光の戦士か……。ウリエンジェから話は聞いている。";
     private string promptTestResult = string.Empty;
     private bool isTestingCustomPrompt = false;
+
+    // Custom Glossary Editor State
+    private string glossarySearchFilter = string.Empty;
+    private bool isEditingGlossary = false;
+    private string? editingEntryId = null;
+    private string editJp = string.Empty;
+    private string editEn = string.Empty;
+    private string editCht = string.Empty;
+    private string editChs = string.Empty;
+    private bool editMatchSpeaker = true;
+    private bool editMatchDialogue = true;
+    private string editNotes = string.Empty;
+    private string editorValidationMsg = string.Empty;
+
+    private bool showImportExportSection = false;
+    private string importExportBuffer = string.Empty;
+    private string importExportStatus = string.Empty;
+
+    private string testSpeakerInput = "タタル";
+    private string testDialogueInput = "光の戦士さん、暁の血盟の本部へ行きましょう！";
+    private TargetLanguage testTargetLang = TargetLanguage.TraditionalChinese;
+    private string testResultSpeaker = string.Empty;
+    private string testResultDialogue = string.Empty;
+    private string testMatchedRules = string.Empty;
+    private bool showClearAllConfirm = false;
 
     private static readonly string[] PromptPresetTemplates = new[]
     {
@@ -66,7 +96,7 @@ public class ConfigWindow : Window
         "自訂模型 (Custom)"
     };
 
-    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, DialogueReplaceOverlayWindow replaceOverlayWindow, DialogueWatcher dialogueWatcher, GlossaryManager glossary, IFontHandle? fontHandle = null)
+    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, DialogueReplaceOverlayWindow replaceOverlayWindow, DialogueWatcher dialogueWatcher, GlossaryManager glossary, GlossaryEditorWindow? glossaryEditorWindow = null, IFontHandle? fontHandle = null)
         : base("Tataru Native Translator 設定###TataruConfigWindow")
     {
         this.config = config;
@@ -78,9 +108,10 @@ public class ConfigWindow : Window
         this.replaceOverlayWindow = replaceOverlayWindow;
         this.dialogueWatcher = dialogueWatcher;
         this.glossary = glossary;
+        this.glossaryEditorWindow = glossaryEditorWindow;
         this.fontHandle = fontHandle;
 
-        Size = new Vector2(620, 660);
+        Size = new Vector2(760, 680);
         SizeCondition = ImGuiCond.FirstUseEver;
     }
 
@@ -99,6 +130,12 @@ public class ConfigWindow : Window
                 if (ImGui.BeginTabItem("AI 翻譯設定"))
                 {
                     DrawTranslationSettings();
+                    ImGui.EndTabItem();
+                }
+
+                if (ImGui.BeginTabItem("自訂對照表 (Glossary)"))
+                {
+                    DrawCustomGlossaryTab();
                     ImGui.EndTabItem();
                 }
 
@@ -456,6 +493,25 @@ public class ConfigWindow : Window
         if (ImGui.Button(isUpdatingGlossary ? "文本更新中..." : "立即從 Tataru-Assistant 雲端更新文本庫", new Vector2(-1, 32)) && !isUpdatingGlossary)
         {
             UpdateGlossaryFromCloud();
+        }
+
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "自訂多語名詞對照表 (Custom Glossary)");
+        int customTotal = config.CustomGlossaryEntries?.Count ?? 0;
+        int customEnabled = config.CustomGlossaryEntries?.Count(e => e.Enabled) ?? 0;
+        ImGui.TextDisabled($"目前已建立：{customTotal} 筆自訂對照規則（已啟用 {customEnabled} 筆），支援日文/英文/繁中/簡中對照。");
+        ImGui.Spacing();
+
+        if (glossaryEditorWindow != null)
+        {
+            if (ImGui.Button("📑 開啟自訂名詞對照表編輯器 (獨立視窗)", new Vector2(-1, 32)))
+            {
+                glossaryEditorWindow.IsOpen = true;
+                glossaryEditorWindow.BringToFront();
+            }
         }
 
         if (!string.IsNullOrEmpty(glossaryStatus))
@@ -1183,4 +1239,704 @@ public class ConfigWindow : Window
             }
         });
     }
+
+    #region Custom Glossary Editor
+
+    private void DrawCustomGlossaryTab()
+    {
+        if (glossaryEditorWindow != null)
+        {
+            ImGui.Spacing();
+            if (ImGui.Button("📑 在獨立視窗中開啟自訂名詞對照表編輯器 (Pop-out Editor Window)", new Vector2(-1, 36)))
+            {
+                glossaryEditorWindow.IsOpen = true;
+                glossaryEditorWindow.BringToFront();
+            }
+            ImGui.TextDisabled("點擊上方按鈕可將「自訂名詞對照表」展開為獨立可自由拖曳、調整尺寸與置頂編輯的專屬視窗。");
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
+        }
+
+        DrawCustomGlossaryEditor();
+    }
+
+    private void DrawCustomGlossaryEditor()
+    {
+        ImGui.Spacing();
+        ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "自訂多語名詞對照表 (Custom Glossary & Terminology Editor)");
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        // 1. Enable switch
+        var enableCustom = config.EnableCustomGlossary;
+        if (ImGui.Checkbox("啟用自訂名詞對照表 (Custom Glossary)", ref enableCustom))
+        {
+            config.EnableCustomGlossary = enableCustom;
+            config.Save();
+        }
+        ImGui.SameLine();
+        ImGui.TextDisabled("（自訂規則優先度高於官方辭典，並會自動注入 AI 提示詞與後處理取代）");
+
+        int totalCount = config.CustomGlossaryEntries?.Count ?? 0;
+        int enabledCount = config.CustomGlossaryEntries?.Count(e => e.Enabled) ?? 0;
+        ImGui.TextColored(new Vector4(0.85f, 0.85f, 0.85f, 1.0f), $"目前清單：共 {totalCount} 筆對照規則（已啟用 {enabledCount} 筆）");
+        ImGui.Spacing();
+
+        // 2. Action Toolbar
+        if (ImGui.Button("➕ 新增對照項目", new Vector2(130, 28)))
+        {
+            StartNewGlossaryEntry();
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("⚡ 載入經典預設範本", new Vector2(145, 28)))
+        {
+            LoadPresetGlossaryEntries();
+        }
+        ImGui.SameLine();
+        if (ImGui.Button(showImportExportSection ? "關閉匯入/匯出" : "📥 匯入 / 📤 匯出", new Vector2(130, 28)))
+        {
+            showImportExportSection = !showImportExportSection;
+            importExportStatus = string.Empty;
+        }
+        ImGui.SameLine();
+        if (!showClearAllConfirm)
+        {
+            if (ImGui.Button("🗑️ 清空清單", new Vector2(100, 28)))
+            {
+                showClearAllConfirm = true;
+            }
+        }
+        else
+        {
+            ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), "確定清空？");
+            ImGui.SameLine();
+            if (ImGui.Button("確認清空", new Vector2(75, 28)))
+            {
+                config.CustomGlossaryEntries?.Clear();
+                config.Save();
+                showClearAllConfirm = false;
+                isEditingGlossary = false;
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("取消", new Vector2(55, 28)))
+            {
+                showClearAllConfirm = false;
+            }
+        }
+
+        ImGui.Spacing();
+
+        // 3. Search Bar
+        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - 85);
+        ImGui.InputTextWithHint("##GlossarySearch", "🔍 快速過濾日文 / 英文 / 繁中 / 簡中 / 備註...", ref glossarySearchFilter, 100);
+        ImGui.SameLine();
+        if (ImGui.Button("清除搜尋", new Vector2(75, 0)))
+        {
+            glossarySearchFilter = string.Empty;
+        }
+
+        ImGui.Spacing();
+
+        // 4. Import / Export drawer
+        if (showImportExportSection)
+        {
+            DrawImportExportSection();
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
+        }
+
+        // 5. Add / Edit Form
+        if (isEditingGlossary)
+        {
+            DrawGlossaryEditForm();
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
+        }
+
+        // 6. Glossary Entries Table
+        DrawGlossaryTable();
+
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        // 7. Live Tester
+        DrawLiveGlossaryTester();
+    }
+
+    private void DrawGlossaryEditForm()
+    {
+        bool isNew = string.IsNullOrEmpty(editingEntryId);
+        ImGui.BeginGroup();
+        ImGui.TextColored(new Vector4(1.0f, 0.85f, 0.35f, 1.0f), isNew ? "【新增自訂對照項目】" : "【編輯自訂對照項目】");
+        ImGui.Spacing();
+
+        float colWidth = (ImGui.GetContentRegionAvail().X - 24) / 2f;
+
+        // Row 1: Japanese & English
+        ImGui.BeginGroup();
+        ImGui.Text("日文原文 (Japanese)：");
+        ImGui.SetNextItemWidth(colWidth);
+        ImGui.InputText("##EditJp", ref editJp, 100);
+        ImGui.EndGroup();
+
+        ImGui.SameLine(0, 16);
+
+        ImGui.BeginGroup();
+        ImGui.Text("英文原文 (English)：");
+        ImGui.SetNextItemWidth(colWidth);
+        ImGui.InputText("##EditEn", ref editEn, 100);
+        ImGui.EndGroup();
+
+        ImGui.Spacing();
+
+        // Row 2: Traditional & Simplified Chinese
+        ImGui.BeginGroup();
+        ImGui.Text("繁體中文譯名 (Traditional Chinese)：");
+        ImGui.SetNextItemWidth(colWidth);
+        ImGui.InputText("##EditCht", ref editCht, 100);
+        ImGui.EndGroup();
+
+        ImGui.SameLine(0, 16);
+
+        ImGui.BeginGroup();
+        ImGui.Text("簡體中文譯名 (Simplified Chinese)：");
+        ImGui.SetNextItemWidth(colWidth);
+        ImGui.InputText("##EditChs", ref editChs, 100);
+        ImGui.EndGroup();
+
+        ImGui.Spacing();
+
+        // Auto copy helper buttons
+        if (ImGui.Button("繁中 ➜ 簡中", new Vector2(110, 24)))
+        {
+            if (!string.IsNullOrWhiteSpace(editCht)) editChs = editCht;
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("簡中 ➜ 繁中", new Vector2(110, 24)))
+        {
+            if (!string.IsNullOrWhiteSpace(editChs)) editCht = editChs;
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("日文 ➜ 英文", new Vector2(110, 24)))
+        {
+            if (!string.IsNullOrWhiteSpace(editJp)) editEn = editJp;
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("英文 ➜ 日文", new Vector2(110, 24)))
+        {
+            if (!string.IsNullOrWhiteSpace(editEn)) editJp = editEn;
+        }
+
+        ImGui.Spacing();
+
+        // Row 3: Scopes
+        ImGui.Checkbox("套用於說話者名稱 (Speaker)", ref editMatchSpeaker);
+        ImGui.SameLine(0, 25);
+        ImGui.Checkbox("套用於對話正文/名詞 (Dialogue)", ref editMatchDialogue);
+
+        ImGui.Spacing();
+
+        // Row 4: Notes
+        ImGui.Text("備註 / 分類說明 (選填)：");
+        ImGui.SetNextItemWidth(-1);
+        ImGui.InputText("##EditNotes", ref editNotes, 100);
+
+        if (!string.IsNullOrEmpty(editorValidationMsg))
+        {
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(1f, 0.4f, 0.4f, 1f), editorValidationMsg);
+        }
+
+        ImGui.Spacing();
+
+        if (ImGui.Button("💾 儲存並套用", new Vector2(120, 30)))
+        {
+            SaveCurrentEditEntry();
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("❌ 取消", new Vector2(90, 30)))
+        {
+            isEditingGlossary = false;
+            editorValidationMsg = string.Empty;
+        }
+
+        ImGui.EndGroup();
+    }
+
+    private void DrawGlossaryTable()
+    {
+        var entries = config.CustomGlossaryEntries ?? new List<CustomGlossaryEntry>();
+        var filter = glossarySearchFilter?.Trim() ?? string.Empty;
+
+        var filtered = entries.Where(e =>
+            string.IsNullOrEmpty(filter) ||
+            (!string.IsNullOrEmpty(e.Japanese) && e.Japanese.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrEmpty(e.English) && e.English.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrEmpty(e.TraditionalChinese) && e.TraditionalChinese.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrEmpty(e.SimplifiedChinese) && e.SimplifiedChinese.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrEmpty(e.Notes) && e.Notes.Contains(filter, StringComparison.OrdinalIgnoreCase))
+        ).ToList();
+
+        if (filtered.Count == 0)
+        {
+            ImGui.TextDisabled(string.IsNullOrEmpty(filter) ? "目前尚無任何自訂對照項目。點擊上方「➕ 新增對照項目」或「⚡ 載入經典預設範本」開始建立！" : "找不到符合搜尋條件的對照項目。");
+            return;
+        }
+
+        var tableFlags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY;
+        var tableSize = new Vector2(-1, 280);
+
+        if (ImGui.BeginTable("CustomGlossaryEntriesTable", 8, tableFlags, tableSize))
+        {
+            ImGui.TableSetupColumn("啟用", ImGuiTableColumnFlags.WidthFixed, 42);
+            ImGui.TableSetupColumn("日文 (JP)", ImGuiTableColumnFlags.WidthStretch, 1.0f);
+            ImGui.TableSetupColumn("英文 (EN)", ImGuiTableColumnFlags.WidthStretch, 1.0f);
+            ImGui.TableSetupColumn("繁體中文 (CHT)", ImGuiTableColumnFlags.WidthStretch, 1.0f);
+            ImGui.TableSetupColumn("簡體中文 (CHS)", ImGuiTableColumnFlags.WidthStretch, 1.0f);
+            ImGui.TableSetupColumn("範圍", ImGuiTableColumnFlags.WidthFixed, 75);
+            ImGui.TableSetupColumn("備註", ImGuiTableColumnFlags.WidthStretch, 0.8f);
+            ImGui.TableSetupColumn("操作", ImGuiTableColumnFlags.WidthFixed, 105);
+            ImGui.TableHeadersRow();
+
+            CustomGlossaryEntry? toDelete = null;
+            CustomGlossaryEntry? toClone = null;
+
+            foreach (var entry in filtered)
+            {
+                ImGui.TableNextRow();
+
+                // 1. Enabled
+                ImGui.TableSetColumnIndex(0);
+                var enabled = entry.Enabled;
+                if (ImGui.Checkbox($"##en_{entry.Id}", ref enabled))
+                {
+                    entry.Enabled = enabled;
+                    config.Save();
+                }
+
+                // 2. Japanese
+                ImGui.TableSetColumnIndex(1);
+                if (!string.IsNullOrWhiteSpace(entry.Japanese))
+                {
+                    ImGui.TextColored(new Vector4(0.5f, 0.9f, 1.0f, 1.0f), entry.Japanese);
+                }
+                else
+                {
+                    ImGui.TextDisabled("-");
+                }
+
+                // 3. English
+                ImGui.TableSetColumnIndex(2);
+                if (!string.IsNullOrWhiteSpace(entry.English))
+                {
+                    ImGui.TextColored(new Vector4(1.0f, 0.85f, 0.4f, 1.0f), entry.English);
+                }
+                else
+                {
+                    ImGui.TextDisabled("-");
+                }
+
+                // 4. Traditional Chinese
+                ImGui.TableSetColumnIndex(3);
+                if (!string.IsNullOrWhiteSpace(entry.TraditionalChinese))
+                {
+                    ImGui.TextColored(new Vector4(0.4f, 1.0f, 0.6f, 1.0f), entry.TraditionalChinese);
+                }
+                else
+                {
+                    ImGui.TextDisabled("-");
+                }
+
+                // 5. Simplified Chinese
+                ImGui.TableSetColumnIndex(4);
+                if (!string.IsNullOrWhiteSpace(entry.SimplifiedChinese))
+                {
+                    ImGui.Text(entry.SimplifiedChinese);
+                }
+                else
+                {
+                    ImGui.TextDisabled("-");
+                }
+
+                // 6. Scope
+                ImGui.TableSetColumnIndex(5);
+                if (entry.MatchSpeaker && entry.MatchDialogue)
+                {
+                    ImGui.Text("說話+內文");
+                }
+                else if (entry.MatchSpeaker)
+                {
+                    ImGui.Text("僅說話者");
+                }
+                else if (entry.MatchDialogue)
+                {
+                    ImGui.Text("僅內文");
+                }
+                else
+                {
+                    ImGui.TextDisabled("無");
+                }
+
+                // 7. Notes
+                ImGui.TableSetColumnIndex(6);
+                if (!string.IsNullOrWhiteSpace(entry.Notes))
+                {
+                    ImGui.TextDisabled(entry.Notes);
+                }
+                else
+                {
+                    ImGui.TextDisabled("-");
+                }
+
+                // 8. Actions
+                ImGui.TableSetColumnIndex(7);
+                if (ImGui.Button($"編##{entry.Id}", new Vector2(30, 22)))
+                {
+                    StartEditGlossaryEntry(entry);
+                }
+                ImGui.SameLine();
+                if (ImGui.Button($"複##{entry.Id}", new Vector2(30, 22)))
+                {
+                    toClone = entry;
+                }
+                ImGui.SameLine();
+                if (ImGui.Button($"刪##{entry.Id}", new Vector2(30, 22)))
+                {
+                    toDelete = entry;
+                }
+            }
+
+            ImGui.EndTable();
+
+            if (toClone != null)
+            {
+                var copy = toClone.Clone();
+                if (!string.IsNullOrEmpty(copy.Notes)) copy.Notes += " (副本)";
+                config.CustomGlossaryEntries?.Add(copy);
+                config.Save();
+            }
+
+            if (toDelete != null)
+            {
+                config.CustomGlossaryEntries?.Remove(toDelete);
+                if (editingEntryId == toDelete.Id)
+                {
+                    isEditingGlossary = false;
+                }
+                config.Save();
+            }
+        }
+    }
+
+    private void DrawImportExportSection()
+    {
+        ImGui.BeginGroup();
+        ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "【自訂對照表 匯入 / 匯出】");
+        ImGui.Spacing();
+
+        if (ImGui.Button("📋 匯出為 JSON 到文字框", new Vector2(170, 26)))
+        {
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            importExportBuffer = JsonSerializer.Serialize(config.CustomGlossaryEntries, options);
+            importExportStatus = $"已匯出 {config.CustomGlossaryEntries.Count} 筆對照為 JSON 格式。";
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("📋 匯出為 CSV 到文字框", new Vector2(170, 26)))
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("Japanese,English,TraditionalChinese,SimplifiedChinese,MatchSpeaker,MatchDialogue,Notes");
+            foreach (var entry in config.CustomGlossaryEntries)
+            {
+                sb.AppendLine($"\"{entry.Japanese}\",\"{entry.English}\",\"{entry.TraditionalChinese}\",\"{entry.SimplifiedChinese}\",{entry.MatchSpeaker},{entry.MatchDialogue},\"{entry.Notes}\"");
+            }
+            importExportBuffer = sb.ToString();
+            importExportStatus = $"已匯出 {config.CustomGlossaryEntries.Count} 筆對照為 CSV 格式。";
+        }
+
+        ImGui.Spacing();
+        ImGui.SetNextItemWidth(-1);
+        ImGui.InputTextMultiline("##ImportExportBuffer", ref importExportBuffer, 100000, new Vector2(-1, 140));
+
+        ImGui.Spacing();
+        if (ImGui.Button("📥 從上方文字框匯入 (合併模式)", new Vector2(210, 28)))
+        {
+            ExecuteImport(false);
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("📥 從上方文字框匯入 (覆蓋模式)", new Vector2(210, 28)))
+        {
+            ExecuteImport(true);
+        }
+
+        if (!string.IsNullOrEmpty(importExportStatus))
+        {
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), importExportStatus);
+        }
+
+        ImGui.EndGroup();
+    }
+
+    private void DrawLiveGlossaryTester()
+    {
+        ImGui.TextColored(new Vector4(1.0f, 0.85f, 0.35f, 1.0f), "🧪 即時對照規則測試器 (Live Tester)");
+        ImGui.TextDisabled("輸入測試的說話者姓名與日文/英文對話台詞，驗證您的自訂對照表是否能正確被取代與匹配。");
+        ImGui.Spacing();
+
+        ImGui.SetNextItemWidth(180);
+        int langIdx = testTargetLang == TargetLanguage.TraditionalChinese ? 0 : 1;
+        string[] targetOptions = new[] { "繁體中文 (Traditional)", "簡體中文 (Simplified)" };
+        if (ImGui.Combo("測試目標語言##TestLangCombo", ref langIdx, targetOptions, targetOptions.Length))
+        {
+            testTargetLang = langIdx == 0 ? TargetLanguage.TraditionalChinese : TargetLanguage.SimplifiedChinese;
+        }
+
+        ImGui.Spacing();
+        ImGui.Text("測試說話者 (Speaker)：");
+        ImGui.SetNextItemWidth(260);
+        ImGui.InputText("##TestSpeakerInput", ref testSpeakerInput, 100);
+
+        ImGui.Text("測試對話內容 (Dialogue)：");
+        ImGui.SetNextItemWidth(-1);
+        ImGui.InputText("##TestDialogueInput", ref testDialogueInput, 200);
+
+        ImGui.Spacing();
+        if (ImGui.Button("🚀 執行即時對照測試", new Vector2(160, 28)))
+        {
+            testResultSpeaker = glossary.TranslateSpeaker(testSpeakerInput, testTargetLang);
+            testResultDialogue = glossary.ApplyPostTranslation(testDialogueInput, testTargetLang);
+            testMatchedRules = glossary.GetCustomGlossaryPrompt(testSpeakerInput, testDialogueInput, testTargetLang);
+        }
+
+        if (!string.IsNullOrEmpty(testResultSpeaker) || !string.IsNullOrEmpty(testResultDialogue))
+        {
+            ImGui.Spacing();
+            ImGui.BeginChild("##TestResultsChild", new Vector2(-1, 105), true);
+            ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), $"說話者對照結果：{testResultSpeaker}");
+            ImGui.TextColored(new Vector4(0.4f, 1.0f, 0.6f, 1.0f), $"內文取代結果：{testResultDialogue}");
+            if (!string.IsNullOrEmpty(testMatchedRules))
+            {
+                ImGui.Spacing();
+                ImGui.TextColored(new Vector4(1.0f, 0.85f, 0.4f, 1.0f), "AI 提示詞注入規則：");
+                ImGui.TextWrapped(testMatchedRules);
+            }
+            ImGui.EndChild();
+        }
+    }
+
+    private void StartNewGlossaryEntry()
+    {
+        isEditingGlossary = true;
+        editingEntryId = null;
+        editJp = string.Empty;
+        editEn = string.Empty;
+        editCht = string.Empty;
+        editChs = string.Empty;
+        editMatchSpeaker = true;
+        editMatchDialogue = true;
+        editNotes = string.Empty;
+        editorValidationMsg = string.Empty;
+    }
+
+    private void StartEditGlossaryEntry(CustomGlossaryEntry entry)
+    {
+        isEditingGlossary = true;
+        editingEntryId = entry.Id;
+        editJp = entry.Japanese;
+        editEn = entry.English;
+        editCht = entry.TraditionalChinese;
+        editChs = entry.SimplifiedChinese;
+        editMatchSpeaker = entry.MatchSpeaker;
+        editMatchDialogue = entry.MatchDialogue;
+        editNotes = entry.Notes;
+        editorValidationMsg = string.Empty;
+    }
+
+    private void SaveCurrentEditEntry()
+    {
+        if (string.IsNullOrWhiteSpace(editJp) && string.IsNullOrWhiteSpace(editEn))
+        {
+            editorValidationMsg = "請至少填寫「日文」或「英文」其中一項原文！";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editCht) && string.IsNullOrWhiteSpace(editChs))
+        {
+            editorValidationMsg = "請至少填寫「繁體中文」或「簡體中文」其中一項譯名！";
+            return;
+        }
+
+        // Auto fallback if one Chinese is empty
+        if (string.IsNullOrWhiteSpace(editCht)) editCht = editChs;
+        if (string.IsNullOrWhiteSpace(editChs)) editChs = editCht;
+
+        if (string.IsNullOrEmpty(editingEntryId))
+        {
+            // Create new
+            var entry = new CustomGlossaryEntry
+            {
+                Japanese = editJp.Trim(),
+                English = editEn.Trim(),
+                TraditionalChinese = editCht.Trim(),
+                SimplifiedChinese = editChs.Trim(),
+                MatchSpeaker = editMatchSpeaker,
+                MatchDialogue = editMatchDialogue,
+                Notes = editNotes.Trim()
+            };
+            config.CustomGlossaryEntries.Add(entry);
+        }
+        else
+        {
+            // Update existing
+            var existing = config.CustomGlossaryEntries.Find(e => e.Id == editingEntryId);
+            if (existing != null)
+            {
+                existing.Japanese = editJp.Trim();
+                existing.English = editEn.Trim();
+                existing.TraditionalChinese = editCht.Trim();
+                existing.SimplifiedChinese = editChs.Trim();
+                existing.MatchSpeaker = editMatchSpeaker;
+                existing.MatchDialogue = editMatchDialogue;
+                existing.Notes = editNotes.Trim();
+            }
+        }
+
+        config.Save();
+        isEditingGlossary = false;
+        editorValidationMsg = string.Empty;
+    }
+
+    private void LoadPresetGlossaryEntries()
+    {
+        var presets = GlossaryManager.GetDefaultPresets();
+        int added = 0;
+        foreach (var p in presets)
+        {
+            bool exists = config.CustomGlossaryEntries.Any(e =>
+                (!string.IsNullOrEmpty(p.Japanese) && string.Equals(e.Japanese, p.Japanese, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(p.English) && string.Equals(e.English, p.English, StringComparison.OrdinalIgnoreCase)));
+
+            if (!exists)
+            {
+                config.CustomGlossaryEntries.Add(p);
+                added++;
+            }
+        }
+        config.Save();
+    }
+
+    private void ExecuteImport(bool overwrite)
+    {
+        if (string.IsNullOrWhiteSpace(importExportBuffer))
+        {
+            importExportStatus = "匯入失敗：文字框為空！";
+            return;
+        }
+
+        try
+        {
+            var trimmed = importExportBuffer.Trim();
+            List<CustomGlossaryEntry> imported = new();
+
+            if (trimmed.StartsWith("["))
+            {
+                // JSON format
+                var list = JsonSerializer.Deserialize<List<CustomGlossaryEntry>>(trimmed);
+                if (list != null) imported = list;
+            }
+            else
+            {
+                // CSV format
+                using var reader = new StringReader(trimmed);
+                string? line;
+                bool isHeader = true;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    if (isHeader && (line.StartsWith("Japanese", StringComparison.OrdinalIgnoreCase) || line.StartsWith("\"Japanese", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        isHeader = false;
+                        continue;
+                    }
+                    isHeader = false;
+
+                    var parts = ParseCsvLine(line);
+                    if (parts.Count >= 4)
+                    {
+                        var entry = new CustomGlossaryEntry
+                        {
+                            Japanese = parts[0],
+                            English = parts[1],
+                            TraditionalChinese = parts[2],
+                            SimplifiedChinese = parts[3],
+                            MatchSpeaker = parts.Count > 4 ? bool.TryParse(parts[4], out var ms) && ms : true,
+                            MatchDialogue = parts.Count > 5 ? bool.TryParse(parts[5], out var md) && md : true,
+                            Notes = parts.Count > 6 ? parts[6] : string.Empty
+                        };
+                        imported.Add(entry);
+                    }
+                }
+            }
+
+            if (imported.Count == 0)
+            {
+                importExportStatus = "未能從輸入內容解析出任何對照項目，請檢查格式。";
+                return;
+            }
+
+            if (overwrite)
+            {
+                config.CustomGlossaryEntries?.Clear();
+            }
+
+            foreach (var item in imported)
+            {
+                if (overwrite || config.CustomGlossaryEntries?.Any(e => e.Id == item.Id) != true)
+                {
+                    config.CustomGlossaryEntries?.Add(item);
+                }
+            }
+
+            config.Save();
+            importExportStatus = $"成功匯入 {imported.Count} 筆對照！{(overwrite ? "（已覆蓋原清單）" : "（已合併至現有清單）")}";
+        }
+        catch (Exception ex)
+        {
+            importExportStatus = $"匯入發生錯誤：{ex.Message}";
+        }
+    }
+
+    private static List<string> ParseCsvLine(string line)
+    {
+        var result = new List<string>();
+        bool inQuotes = false;
+        var current = new StringBuilder();
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+            if (c == '"')
+            {
+                inQuotes = !inQuotes;
+            }
+            else if (c == ',' && !inQuotes)
+            {
+                result.Add(current.ToString().Trim());
+                current.Clear();
+            }
+            else
+            {
+                current.Append(c);
+            }
+        }
+        result.Add(current.ToString().Trim());
+        return result;
+    }
+
+    #endregion
+
 }

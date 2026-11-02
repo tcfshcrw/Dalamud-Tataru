@@ -39,6 +39,7 @@ public class Plugin : IDalamudPlugin
     private readonly DialogueWatcher dialogueWatcher;
     private readonly SubtitleOverlayWindow overlayWindow;
     private readonly DialogueReplaceOverlayWindow replaceOverlayWindow;
+    private readonly GlossaryEditorWindow glossaryEditorWindow;
     private readonly ConfigWindow configWindow;
 
     public Plugin()
@@ -78,7 +79,7 @@ public class Plugin : IDalamudPlugin
             PluginLog.Warning(ex, "無法建立 NotoSansCjk 中文字型句柄，將使用預設字型。");
         }
 
-        glossaryManager = new GlossaryManager(PluginLog, PluginInterface.GetPluginConfigDirectory());
+        glossaryManager = new GlossaryManager(Configuration, PluginLog, PluginInterface.GetPluginConfigDirectory());
         youdaoTranslator = new YoudaoTranslator(Configuration, PluginLog, glossaryManager);
         googleTranslator = new GoogleTranslator(Configuration, PluginLog, glossaryManager);
         lmStudioTranslator = new LmStudioTranslator(Configuration, glossaryManager, PluginLog);
@@ -90,11 +91,13 @@ public class Plugin : IDalamudPlugin
 
         overlayWindow = new SubtitleOverlayWindow(Configuration, CjkFontHandle);
         replaceOverlayWindow = new DialogueReplaceOverlayWindow(Configuration, dialogueWatcher, CjkFontHandle);
-        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, replaceOverlayWindow, dialogueWatcher, glossaryManager, CjkFontHandle);
+        glossaryEditorWindow = new GlossaryEditorWindow(Configuration, glossaryManager, CjkFontHandle);
+        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, replaceOverlayWindow, dialogueWatcher, glossaryManager, glossaryEditorWindow, CjkFontHandle);
 
         WindowSystem.AddWindow(overlayWindow);
         WindowSystem.AddWindow(replaceOverlayWindow);
         WindowSystem.AddWindow(configWindow);
+        WindowSystem.AddWindow(glossaryEditorWindow);
 
         var version = GetType().Assembly.GetName().Version;
         string versionStr = version != null ? $"v{version}" : "v1.0.0";
@@ -217,6 +220,10 @@ public class Plugin : IDalamudPlugin
                 {
                     overlayWindow.IsOpen = !overlayWindow.IsOpen;
                 }
+                break;
+
+            case "glossary" or "dict" or "custom":
+                glossaryEditorWindow.IsOpen = !glossaryEditorWindow.IsOpen;
                 break;
 
             case "config" or "settings" or "setting":

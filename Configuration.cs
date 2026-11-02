@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Dalamud.Configuration;
 using Dalamud.Plugin;
@@ -33,9 +34,16 @@ public class Configuration : IPluginConfiguration
     public string LmStudioApiKey { get; set; } = string.Empty;
     public float LmStudioTemperature { get; set; } = 0.2f;
 
-    // Glossary
+    // Glossary & Custom Terminology
     public bool AutoUpdateGlossary { get; set; } = true;
     public bool ShowStartupNotification { get; set; } = true;
+    public bool EnableCustomGlossary { get; set; } = true;
+    private List<CustomGlossaryEntry>? customGlossaryEntries;
+    public List<CustomGlossaryEntry> CustomGlossaryEntries
+    {
+        get => customGlossaryEntries ??= new();
+        set => customGlossaryEntries = value ?? new();
+    }
 
     // Hook Toggles
     public bool TranslateTalk { get; set; } = true;

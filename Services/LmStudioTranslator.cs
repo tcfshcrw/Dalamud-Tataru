@@ -110,6 +110,12 @@ public class LmStudioTranslator : IDisposable
                 .Replace("{sourceLang}", srcName)
                 .Replace("{sourceLanguage}", srcName);
 
+            var glossaryRules = glossary.GetCustomGlossaryPrompt(speaker, text, targetLang);
+            if (!string.IsNullOrEmpty(glossaryRules))
+            {
+                systemPrompt += glossaryRules;
+            }
+
             var modelToUse = string.IsNullOrWhiteSpace(config.LmStudioModel) ? "local-model" : config.LmStudioModel.Trim();
             var url = $"{GetBaseUrl()}/chat/completions";
             var temp = Math.Clamp(config.LmStudioTemperature, 0.0f, 1.0f);
