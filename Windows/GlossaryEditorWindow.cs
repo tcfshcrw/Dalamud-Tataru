@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -136,7 +136,7 @@ public class GlossaryEditorWindow : Window
             ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.12f, 0.45f, 0.20f, 1.0f));
         }
 
-        if (ImGui.Button("儲存至 CustomGlossary.json", new Vector2(245, 34)))
+        if (ImGui.Button("儲存至 CustomGlossary.json", new Vector2(0, 32)))
         {
             SaveChanges();
         }
@@ -147,13 +147,13 @@ public class GlossaryEditorWindow : Window
         }
 
         ImGui.SameLine();
-        if (ImGui.Button("放棄修改 / 重新載入", new Vector2(170, 34)))
+        if (ImGui.Button("放棄修改 / 重新載入", new Vector2(0, 32)))
         {
             ReloadFromConfig();
         }
 
         ImGui.SameLine();
-        if (ImGui.Button("開啟 JSON 所在資料夾", new Vector2(175, 34)))
+        if (ImGui.Button("開啟 JSON 所在資料夾", new Vector2(0, 32)))
         {
             try
             {
@@ -203,17 +203,17 @@ public class GlossaryEditorWindow : Window
         ImGui.Spacing();
 
         // 3. Action Toolbar
-        if (ImGui.Button("+ 新增對照項目", new Vector2(130, 28)))
+        if (ImGui.Button("+ 新增對照項目", new Vector2(0, 28)))
         {
             StartNewGlossaryEntry();
         }
         ImGui.SameLine();
-        if (ImGui.Button("載入經典預設範本", new Vector2(145, 28)))
+        if (ImGui.Button("載入經典預設範本", new Vector2(0, 28)))
         {
             LoadPresetGlossaryEntries();
         }
         ImGui.SameLine();
-        if (ImGui.Button(showImportExportSection ? "關閉匯入/匯出" : "匯入 / 匯出", new Vector2(130, 28)))
+        if (ImGui.Button(showImportExportSection ? "關閉匯入/匯出" : "匯入 / 匯出", new Vector2(0, 28)))
         {
             showImportExportSection = !showImportExportSection;
             importExportStatus = string.Empty;
@@ -221,7 +221,7 @@ public class GlossaryEditorWindow : Window
         ImGui.SameLine();
         if (!showClearAllConfirm)
         {
-            if (ImGui.Button("清空清單", new Vector2(100, 28)))
+            if (ImGui.Button("清空清單", new Vector2(0, 28)))
             {
                 showClearAllConfirm = true;
             }
@@ -230,7 +230,7 @@ public class GlossaryEditorWindow : Window
         {
             ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), "確定清空？");
             ImGui.SameLine();
-            if (ImGui.Button("確認清空", new Vector2(75, 28)))
+            if (ImGui.Button("確認清空", new Vector2(0, 28)))
             {
                 workingEntries.Clear();
                 isDirty = true;
@@ -238,7 +238,7 @@ public class GlossaryEditorWindow : Window
                 isEditingGlossary = false;
             }
             ImGui.SameLine();
-            if (ImGui.Button("取消", new Vector2(55, 28)))
+            if (ImGui.Button("取消", new Vector2(0, 28)))
             {
                 showClearAllConfirm = false;
             }
@@ -247,10 +247,11 @@ public class GlossaryEditorWindow : Window
         ImGui.Spacing();
 
         // 4. Search Bar
-        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - 85);
+        float clearBtnW = ImGui.CalcTextSize("清除搜尋").X + ImGui.GetStyle().FramePadding.X * 2 + 6;
+        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - clearBtnW - ImGui.GetStyle().ItemSpacing.X);
         ImGui.InputTextWithHint("##GlossarySearch", "快速過濾日文 / 英文 / 繁中 / 簡中 / 備註...", ref glossarySearchFilter, 100);
         ImGui.SameLine();
-        if (ImGui.Button("清除搜尋", new Vector2(75, 0)))
+        if (ImGui.Button("清除搜尋"))
         {
             glossarySearchFilter = string.Empty;
         }
@@ -330,22 +331,22 @@ public class GlossaryEditorWindow : Window
         ImGui.Spacing();
 
         // Auto copy helper buttons
-        if (ImGui.Button("繁中 -> 簡中", new Vector2(110, 24)))
+        if (ImGui.Button("繁中 -> 簡中", new Vector2(0, 26)))
         {
             if (!string.IsNullOrWhiteSpace(editCht)) editChs = editCht;
         }
         ImGui.SameLine();
-        if (ImGui.Button("簡中 -> 繁中", new Vector2(110, 24)))
+        if (ImGui.Button("簡中 -> 繁中", new Vector2(0, 26)))
         {
             if (!string.IsNullOrWhiteSpace(editChs)) editCht = editChs;
         }
         ImGui.SameLine();
-        if (ImGui.Button("日文 -> 英文", new Vector2(110, 24)))
+        if (ImGui.Button("日文 -> 英文", new Vector2(0, 26)))
         {
             if (!string.IsNullOrWhiteSpace(editJp)) editEn = editJp;
         }
         ImGui.SameLine();
-        if (ImGui.Button("英文 -> 日文", new Vector2(110, 24)))
+        if (ImGui.Button("英文 -> 日文", new Vector2(0, 26)))
         {
             if (!string.IsNullOrWhiteSpace(editEn)) editJp = editEn;
         }
@@ -372,12 +373,12 @@ public class GlossaryEditorWindow : Window
 
         ImGui.Spacing();
 
-        if (ImGui.Button("確認加入清單 (需點擊上方儲存)", new Vector2(230, 30)))
+        if (ImGui.Button("確認加入清單 (需點擊上方儲存)", new Vector2(0, 30)))
         {
             SaveCurrentEditEntry();
         }
         ImGui.SameLine();
-        if (ImGui.Button("取消", new Vector2(90, 30)))
+        if (ImGui.Button("取消", new Vector2(0, 30)))
         {
             isEditingGlossary = false;
             editorValidationMsg = string.Empty;
@@ -417,7 +418,7 @@ public class GlossaryEditorWindow : Window
             ImGui.TableSetupColumn("簡體中文 (CHS)", ImGuiTableColumnFlags.WidthStretch, 1.0f);
             ImGui.TableSetupColumn("範圍", ImGuiTableColumnFlags.WidthFixed, 75);
             ImGui.TableSetupColumn("備註", ImGuiTableColumnFlags.WidthStretch, 0.8f);
-            ImGui.TableSetupColumn("操作", ImGuiTableColumnFlags.WidthFixed, 105);
+            ImGui.TableSetupColumn("操作", ImGuiTableColumnFlags.WidthFixed, 150);
             ImGui.TableHeadersRow();
 
             CustomGlossaryEntry? toDelete = null;
@@ -512,17 +513,17 @@ public class GlossaryEditorWindow : Window
 
                 // 8. Actions
                 ImGui.TableSetColumnIndex(7);
-                if (ImGui.Button($"編##{entry.Id}", new Vector2(30, 22)))
+                if (ImGui.Button($"編輯##{entry.Id}", new Vector2(0, 26)))
                 {
                     StartEditGlossaryEntry(entry);
                 }
                 ImGui.SameLine();
-                if (ImGui.Button($"複##{entry.Id}", new Vector2(30, 22)))
+                if (ImGui.Button($"複製##{entry.Id}", new Vector2(0, 26)))
                 {
                     toClone = entry;
                 }
                 ImGui.SameLine();
-                if (ImGui.Button($"刪##{entry.Id}", new Vector2(30, 22)))
+                if (ImGui.Button($"刪除##{entry.Id}", new Vector2(0, 26)))
                 {
                     toDelete = entry;
                 }
@@ -556,14 +557,14 @@ public class GlossaryEditorWindow : Window
         ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "【自訂對照表 匯入 / 匯出】");
         ImGui.Spacing();
 
-        if (ImGui.Button("匯出為 JSON 到文字框", new Vector2(170, 26)))
+        if (ImGui.Button("匯出為 JSON 到文字框", new Vector2(0, 28)))
         {
             var options = new JsonSerializerOptions { WriteIndented = true };
             importExportBuffer = JsonSerializer.Serialize(workingEntries, options);
             importExportStatus = $"已匯出 {workingEntries.Count} 筆對照為 JSON 格式。";
         }
         ImGui.SameLine();
-        if (ImGui.Button("匯出為 CSV 到文字框", new Vector2(170, 26)))
+        if (ImGui.Button("匯出為 CSV 到文字框", new Vector2(0, 28)))
         {
             var sb = new StringBuilder();
             sb.AppendLine("Japanese,English,TraditionalChinese,SimplifiedChinese,MatchSpeaker,MatchDialogue,Notes");
@@ -580,12 +581,12 @@ public class GlossaryEditorWindow : Window
         ImGui.InputTextMultiline("##ImportExportBuffer", ref importExportBuffer, 100000, new Vector2(-1, 140));
 
         ImGui.Spacing();
-        if (ImGui.Button("從上方文字框匯入 (合併模式)", new Vector2(210, 28)))
+        if (ImGui.Button("從上方文字框匯入 (合併模式)", new Vector2(0, 28)))
         {
             ExecuteImport(false);
         }
         ImGui.SameLine();
-        if (ImGui.Button("從上方文字框匯入 (覆蓋模式)", new Vector2(210, 28)))
+        if (ImGui.Button("從上方文字框匯入 (覆蓋模式)", new Vector2(0, 28)))
         {
             ExecuteImport(true);
         }
@@ -605,7 +606,7 @@ public class GlossaryEditorWindow : Window
         ImGui.TextDisabled("輸入測試的說話者姓名與日文/英文對話台詞，驗證清單內的對照規則是否能正確取代與匹配（含未儲存之最新項目）。");
         ImGui.Spacing();
 
-        ImGui.SetNextItemWidth(180);
+        ImGui.SetNextItemWidth(250);
         int langIdx = testTargetLang == TargetLanguage.TraditionalChinese ? 0 : 1;
         string[] targetOptions = new[] { "繁體中文 (Traditional)", "簡體中文 (Simplified)" };
         if (ImGui.Combo("測試目標語言##TestLangCombo", ref langIdx, targetOptions, targetOptions.Length))
@@ -623,7 +624,7 @@ public class GlossaryEditorWindow : Window
         ImGui.InputText("##TestDialogueInput", ref testDialogueInput, 200);
 
         ImGui.Spacing();
-        if (ImGui.Button("執行即時對照測試", new Vector2(160, 28)))
+        if (ImGui.Button("執行即時對照測試", new Vector2(0, 28)))
         {
             testResultSpeaker = TestTranslateSpeaker(testSpeakerInput, testTargetLang);
             testResultDialogue = TestApplyPostTranslation(testDialogueInput, testTargetLang);
