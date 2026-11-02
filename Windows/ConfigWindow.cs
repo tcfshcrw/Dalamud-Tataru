@@ -169,6 +169,26 @@ public class ConfigWindow : Window
     private void DrawTranslationSettings()
     {
         ImGui.Spacing();
+        var enabled = config.Enabled;
+        if (ImGui.Checkbox("啟用 Tataru 對話翻譯功能 (包含原生覆蓋與懸浮窗) [指令: /tataru on / off]", ref enabled))
+        {
+            config.Enabled = enabled;
+            config.Save();
+            if (!enabled)
+            {
+                dialogueWatcher.RestoreTalkAddonState();
+                overlayWindow.CloseDialogue();
+                replaceOverlayWindow.CloseDialogue();
+            }
+        }
+        if (!config.Enabled)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(new Vector4(1.0f, 0.4f, 0.4f, 1.0f), "[目前已關閉翻譯與覆蓋]");
+        }
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
         ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "主要翻譯引擎設定");
         ImGui.Separator();
         ImGui.Spacing();

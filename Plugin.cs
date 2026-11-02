@@ -144,7 +144,7 @@ public class Plugin : IDalamudPlugin
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "開啟設定 (/tataru), 開關字幕 (/tataru toggle), 或切換引擎 (/tataru LMS / /tataru gemini)"
+            HelpMessage = "開啟設定 (/tataru), 開關翻譯 (/tataru on / /tataru off), 或切換引擎 (/tataru LMS / /tataru gemini)"
         });
 
         // 允許視窗在過場動畫 (Cutscene) 及遊戲 UI 隱藏狀態下保持繪製與顯示
@@ -159,6 +159,8 @@ public class Plugin : IDalamudPlugin
 
     private void HandleDialogueChanged(DialogueEntry entry)
     {
+        if (!Configuration.Enabled) return;
+
         // 1. Immediately display original dialogue while waiting for AI translation
         if (Configuration.ReplaceGameTalkAddon && entry.Type == DialogueType.Talk)
         {
@@ -196,6 +198,23 @@ public class Plugin : IDalamudPlugin
         replaceOverlayWindow.CloseDialogue();
     }
 
+    public void SetEnabled(bool enable)
+    {
+        Configuration.Enabled = enable;
+        Configuration.Save();
+
+        if (!enable)
+        {
+            dialogueWatcher.RestoreTalkAddonState();
+            HandleDialogueClosed();
+            ChatGui.Print("[Tataru] 對話翻譯功能已關閉 (含覆蓋) (Translation disabled)");
+        }
+        else
+        {
+            ChatGui.Print("[Tataru] 對話翻譯功能已開啟 (Translation enabled)");
+        }
+    }
+
     private void OnCommand(string command, string args)
     {
         var trimmed = args.Trim();
@@ -211,6 +230,32 @@ public class Plugin : IDalamudPlugin
 
         switch (subCommand)
         {
+            case "on" or "enable":
+                SetEnabled(true);
+                break;
+
+            case "off" or "disable":
+                SetEnabled(false);
+                break;
+
+            case "translate":
+                if (parts.Length > 1)
+                {
+                    var state = parts[1].ToLowerInvariant();
+                    if (state is "on" or "1" or "true")
+                    {
+                        SetEnabled(true);
+                        return;
+                    }
+                    if (state is "off" or "0" or "false")
+                    {
+                        SetEnabled(false);
+                        return;
+                    }
+                }
+                SetEnabled(!Configuration.Enabled);
+                break;
+
             case "toggle":
                 if (Configuration.ReplaceGameTalkAddon)
                 {
@@ -333,8 +378,9 @@ public class Plugin : IDalamudPlugin
 
             case "help":
                 ChatGui.Print("[Tataru] Commands:");
-                ChatGui.Print("  /tataru - Toggle config window");
-                ChatGui.Print("  /tataru toggle - Toggle subtitle overlay window");
+                ChatGui.Print("  /tataru - 開啟/關閉設定視窗 (Toggle config window)");
+                ChatGui.Print("  /tataru on / off - 啟用或關閉對話翻譯與覆蓋 (Enable/disable dialogue translation)");
+                ChatGui.Print("  /tataru toggle - 切換字幕懸浮窗顯示狀態 (Toggle subtitle overlay)");
                 ChatGui.Print("  /tataru replace [on|off] - Toggle native dialogue replace overlay mode");
                 ChatGui.Print("  /tataru LMS [on|off] - Toggle or switch primary engine to LM Studio");
                 ChatGui.Print("  /tataru gemini [on|off] - Toggle or switch primary engine to Gemini");

@@ -12,6 +12,9 @@ public class Configuration : IPluginConfiguration
 {
     public int Version { get; set; } = 1;
 
+    // Master Enable Toggle
+    public bool Enabled { get; set; } = true;
+
     // Translation Engine
     public TranslationEngine PrimaryEngine { get; set; } = TranslationEngine.Gemini;
     public bool EnableFallback { get; set; } = true;

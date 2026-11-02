@@ -42,6 +42,23 @@ public unsafe class DialogueWatcher : IDisposable
 
     private void OnFrameworkUpdate(IFramework _)
     {
+        if (!config.Enabled)
+        {
+            RestoreTalkAddonState();
+            TalkAddonPosition = null;
+            TalkAddonSize = null;
+
+            if (wasVisible)
+            {
+                wasVisible = false;
+                absentFrames = 0;
+                lastSpeaker = string.Empty;
+                lastText = string.Empty;
+                OnDialogueClosed?.Invoke();
+            }
+            return;
+        }
+
         bool currentVisible = false;
 
         // 1. Check NPC Talk dialogue
@@ -310,7 +327,7 @@ public unsafe class DialogueWatcher : IDisposable
         }
     }
 
-    private void RestoreTalkAddonState()
+    public void RestoreTalkAddonState()
     {
         if (isTalkAlphaZeroed || isTalkTextNodeHidden)
         {
