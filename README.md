@@ -1,4 +1,8 @@
-# Tataru Native Translator (Dalamud-Tataru)
+<div align="center">
+  <img src="images/icon.png" width="128" height="128" alt="Tataru Native Translator Logo" />
+  <h1>Tataru Native Translator (Dalamud-Tataru)</h1>
+  <p><strong>一款為 Final Fantasy XIV (FFXIV) 玩家打造的原生遊戲內即時劇情翻譯插件</strong></p>
+</div>
 
 一款為 **Final Fantasy XIV (FFXIV)** 玩家打造的**原生遊戲內即時劇情翻譯插件**。  
 整合 **[Tataru Assistant](https://github.com/winw1010/tataru-assistant)** 的專有名詞與人名辭典，並透過 **Google Gemini AI** / **本地 LM Studio 大模型** 進行非同步即時翻譯。

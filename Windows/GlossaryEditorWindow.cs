@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -248,7 +248,7 @@ public class GlossaryEditorWindow : Window
 
         // 4. Search Bar
         float clearBtnW = ImGui.CalcTextSize("清除搜尋").X + ImGui.GetStyle().FramePadding.X * 2 + 6;
-        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - clearBtnW - ImGui.GetStyle().ItemSpacing.X);
+        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - clearBtnW - ImGui.GetStyle().ItemSpacing.X - 4);
         ImGui.InputTextWithHint("##GlossarySearch", "快速過濾日文 / 英文 / 繁中 / 簡中 / 備註...", ref glossarySearchFilter, 100);
         ImGui.SameLine();
         if (ImGui.Button("清除搜尋"))
@@ -406,10 +406,10 @@ public class GlossaryEditorWindow : Window
             return;
         }
 
-        var tableFlags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY;
+        var tableFlags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.NoSavedSettings;
         var tableSize = new Vector2(-1, 280);
 
-        if (ImGui.BeginTable("CustomGlossaryEntriesTable", 8, tableFlags, tableSize))
+        if (ImGui.BeginTable("CustomGlossaryStandaloneTableV3", 8, tableFlags, tableSize))
         {
             ImGui.TableSetupColumn("啟用", ImGuiTableColumnFlags.WidthFixed, 42);
             ImGui.TableSetupColumn("日文 (JP)", ImGuiTableColumnFlags.WidthStretch, 1.0f);
@@ -418,7 +418,7 @@ public class GlossaryEditorWindow : Window
             ImGui.TableSetupColumn("簡體中文 (CHS)", ImGuiTableColumnFlags.WidthStretch, 1.0f);
             ImGui.TableSetupColumn("範圍", ImGuiTableColumnFlags.WidthFixed, 75);
             ImGui.TableSetupColumn("備註", ImGuiTableColumnFlags.WidthStretch, 0.8f);
-            ImGui.TableSetupColumn("操作", ImGuiTableColumnFlags.WidthFixed, 150);
+            ImGui.TableSetupColumn("操作", ImGuiTableColumnFlags.WidthFixed, 200);
             ImGui.TableHeadersRow();
 
             CustomGlossaryEntry? toDelete = null;
@@ -513,20 +513,23 @@ public class GlossaryEditorWindow : Window
 
                 // 8. Actions
                 ImGui.TableSetColumnIndex(7);
-                if (ImGui.Button($"編輯##{entry.Id}", new Vector2(0, 26)))
+                ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 3));
+                ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 0));
+                if (ImGui.Button($"編輯##{entry.Id}"))
                 {
                     StartEditGlossaryEntry(entry);
                 }
                 ImGui.SameLine();
-                if (ImGui.Button($"複製##{entry.Id}", new Vector2(0, 26)))
+                if (ImGui.Button($"複製##{entry.Id}"))
                 {
                     toClone = entry;
                 }
                 ImGui.SameLine();
-                if (ImGui.Button($"刪除##{entry.Id}", new Vector2(0, 26)))
+                if (ImGui.Button($"刪除##{entry.Id}"))
                 {
                     toDelete = entry;
                 }
+                ImGui.PopStyleVar(2);
             }
 
             ImGui.EndTable();
@@ -606,10 +609,11 @@ public class GlossaryEditorWindow : Window
         ImGui.TextDisabled("輸入測試的說話者姓名與日文/英文對話台詞，驗證清單內的對照規則是否能正確取代與匹配（含未儲存之最新項目）。");
         ImGui.Spacing();
 
-        ImGui.SetNextItemWidth(250);
+        ImGui.Text("測試目標語言：");
+        ImGui.SetNextItemWidth(320);
         int langIdx = testTargetLang == TargetLanguage.TraditionalChinese ? 0 : 1;
         string[] targetOptions = new[] { "繁體中文 (Traditional)", "簡體中文 (Simplified)" };
-        if (ImGui.Combo("測試目標語言##TestLangCombo", ref langIdx, targetOptions, targetOptions.Length))
+        if (ImGui.Combo("##TestLangCombo", ref langIdx, targetOptions, targetOptions.Length))
         {
             testTargetLang = langIdx == 0 ? TargetLanguage.TraditionalChinese : TargetLanguage.SimplifiedChinese;
         }

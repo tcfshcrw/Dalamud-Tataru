@@ -114,6 +114,7 @@ jobs:
               RepoUrl = $manifest.RepoUrl
               ApplicableVersion = $manifest.ApplicableVersion
               DalamudApiLevel = $manifest.DalamudApiLevel
+              IconUrl = if ($manifest.IconUrl) { $manifest.IconUrl } else { "https://raw.githubusercontent.com/${{ github.repository }}/main/images/icon.png" }
               ImageUrls = @()
               DownloadLinkInstall = "https://github.com/${{ github.repository }}/releases/latest/download/latest.zip"
               IsHide = $false

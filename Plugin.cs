@@ -468,6 +468,12 @@ public class Plugin : IDalamudPlugin
             if (!Configuration.ShowDtrStatus) return;
 
             string emoji = string.IsNullOrWhiteSpace(Configuration.DtrCustomEmoji) ? "文" : Configuration.DtrCustomEmoji.Trim();
+            if (emoji == "🌐" || emoji == "🗣️" || emoji == "💬" || emoji == "🤖" || emoji == "📖" || emoji.Any(char.IsSurrogate))
+            {
+                emoji = "文";
+                Configuration.DtrCustomEmoji = "文";
+                Configuration.Save();
+            }
 
             dtrEntry.Text = Configuration.DtrStyle switch
             {
