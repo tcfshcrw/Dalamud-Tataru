@@ -16,7 +16,7 @@ public class Configuration : IPluginConfiguration
     public bool Enabled { get; set; } = true;
     public bool ShowDtrStatus { get; set; } = true;
     public DtrStatusStyle DtrStyle { get; set; } = DtrStatusStyle.EmojiText;
-    public string DtrCustomEmoji { get; set; } = "🌐";
+    public string DtrCustomEmoji { get; set; } = "文";
 
     // Translation Engine
     public TranslationEngine PrimaryEngine { get; set; } = TranslationEngine.Gemini;

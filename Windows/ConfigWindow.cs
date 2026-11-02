@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.IO;
@@ -203,8 +203,8 @@ public class ConfigWindow : Window
             int styleIdx = (int)config.DtrStyle;
             string[] styleOptions = new[]
             {
-                "極簡圖示模式 (例: 🌐: ON / 🌐: OFF)",
-                "純圖示模式 (例: 🌐 / 🌐 (Off))",
+                "極簡圖示模式 (例: 文: ON / 文: OFF)",
+                "純圖示模式 (例: 文 / 文 (Off))",
                 "標準文字模式 (例: Tataru: ON / Tataru: OFF)"
             };
 
@@ -219,8 +219,8 @@ public class ConfigWindow : Window
             if (config.DtrStyle != DtrStatusStyle.Text)
             {
                 ImGui.Spacing();
-                ImGui.Text("翻譯 Emoji 圖示：");
-                string[] presetEmojis = new[] { "🌐", "文", "🗣️", "💬", "📖" };
+                ImGui.Text("翻譯圖示/標記（點選預設或自訂）：");
+                string[] presetEmojis = new[] { "文", "譯", "漢", "«文»", "TL", "TR", "【文】" };
                 foreach (var emoji in presetEmojis)
                 {
                     if (ImGui.Button($"{emoji}##preset"))
@@ -234,12 +234,13 @@ public class ConfigWindow : Window
 
                 var currentEmoji = config.DtrCustomEmoji;
                 ImGui.SetNextItemWidth(70);
-                if (ImGui.InputText("自訂 Emoji##CustomDtrEmoji", ref currentEmoji, 16))
+                if (ImGui.InputText("自訂文字/符號##CustomDtrEmoji", ref currentEmoji, 16))
                 {
                     config.DtrCustomEmoji = currentEmoji.Trim();
                     config.Save();
                     Plugin.Instance?.UpdateDtrBar();
                 }
+                ImGui.TextDisabled("說明：FFXIV 遊戲字型未收錄手機彩色 Emoji (會顯示為 = 亂碼)，建議使用「文」、「譯」、「«文»」或英文字元。");
             }
 
             ImGui.Unindent(20f);

@@ -467,7 +467,7 @@ public class Plugin : IDalamudPlugin
             dtrEntry.Shown = Configuration.ShowDtrStatus;
             if (!Configuration.ShowDtrStatus) return;
 
-            string emoji = string.IsNullOrWhiteSpace(Configuration.DtrCustomEmoji) ? "🌐" : Configuration.DtrCustomEmoji.Trim();
+            string emoji = string.IsNullOrWhiteSpace(Configuration.DtrCustomEmoji) ? "文" : Configuration.DtrCustomEmoji.Trim();
 
             dtrEntry.Text = Configuration.DtrStyle switch
             {
