@@ -291,7 +291,43 @@ public class DialogueReplaceOverlayWindow : Window
                 return;
             }
 
-            // 1. Translated Text
+            // 1. Speaker
+            if (config.ShowSpeaker)
+            {
+                var speaker = !string.IsNullOrEmpty(currentEntry.TranslatedSpeaker) 
+                    ? currentEntry.TranslatedSpeaker 
+                    : currentEntry.Speaker;
+
+                if (!string.IsNullOrEmpty(speaker))
+                {
+                    Vector4 spkColor;
+                    if (config.ReplaceUseNativeBubble)
+                    {
+                        spkColor = dialogueWatcher.IsTalkBubbleDark 
+                            ? new Vector4(1.0f, 0.85f, 0.35f, 1.0f) 
+                            : new Vector4(0.55f, 0.25f, 0.05f, 1.0f);
+                    }
+                    else if (config.ReplaceUseParchmentTheme)
+                    {
+                        spkColor = new Vector4(0.45f, 0.20f, 0.05f, 1.0f);
+                    }
+                    else
+                    {
+                        spkColor = config.SpeakerColor;
+                    }
+
+                    if (config.ReplaceShowOriginalText && !string.IsNullOrEmpty(currentEntry.Speaker) && currentEntry.Speaker != speaker)
+                    {
+                        ImGui.TextColored(spkColor, $"【{speaker} ({currentEntry.Speaker})】");
+                    }
+                    else
+                    {
+                        ImGui.TextColored(spkColor, $"【{speaker}】");
+                    }
+                }
+            }
+
+            // 2. Translated Text
             if (currentEntry.IsTranslating)
             {
                 ImGui.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1.0f), "翻譯中...");

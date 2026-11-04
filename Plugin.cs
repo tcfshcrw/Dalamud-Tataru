@@ -31,6 +31,7 @@ public class Plugin : IDalamudPlugin
     [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
     [PluginService] internal static IPluginLog PluginLog { get; private set; } = null!;
     [PluginService] internal static IDtrBar DtrBar { get; private set; } = null!;
+    [PluginService] internal static IClientState ClientState { get; private set; } = null!;
 
     public Configuration Configuration { get; init; }
     public WindowSystem WindowSystem { get; init; } = new("TataruPlugin");
@@ -58,6 +59,7 @@ public class Plugin : IDalamudPlugin
         {
             var glyphRanges = FontAtlasBuildToolkitUtilities.BeginGlyphRange(UnicodeRanges.BasicLatin)
                 .With(
+                    UnicodeRanges.Latin1Supplement,
                     UnicodeRanges.GeneralPunctuation,
                     UnicodeRanges.CjkSymbolsandPunctuation,
                     UnicodeRanges.HalfwidthandFullwidthForms,

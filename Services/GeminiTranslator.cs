@@ -445,7 +445,8 @@ public class GeminiTranslator : IDisposable
                 cleanJson = cleanJson.Trim();
             }
 
-            string resSpeaker = mappedSpeaker;
+            bool hasGlossarySpeaker = !string.IsNullOrEmpty(mappedSpeaker) && !string.Equals(mappedSpeaker.Trim(), speaker.Trim(), StringComparison.OrdinalIgnoreCase);
+            string resSpeaker = hasGlossarySpeaker ? mappedSpeaker : speaker;
             string resText = text;
 
             try
@@ -456,7 +457,7 @@ public class GeminiTranslator : IDisposable
                     if (outputObj.TryGetPropertyValue("name", out var aiNameNode))
                     {
                         var aiName = aiNameNode?.ToString()?.Trim();
-                        if (!string.IsNullOrEmpty(aiName) && string.IsNullOrEmpty(mappedSpeaker))
+                        if (!string.IsNullOrEmpty(aiName) && !hasGlossarySpeaker)
                         {
                             resSpeaker = aiName;
                         }
@@ -477,7 +478,7 @@ public class GeminiTranslator : IDisposable
                         if (firstObj.TryGetPropertyValue("name", out var aiNameNode))
                         {
                             var aiName = aiNameNode?.ToString()?.Trim();
-                            if (!string.IsNullOrEmpty(aiName) && string.IsNullOrEmpty(mappedSpeaker))
+                            if (!string.IsNullOrEmpty(aiName) && !hasGlossarySpeaker)
                             {
                                 resSpeaker = aiName;
                             }
@@ -511,7 +512,7 @@ public class GeminiTranslator : IDisposable
                     resText = matchText.Groups[1].Value;
                 }
                 var matchName = System.Text.RegularExpressions.Regex.Match(cleanJson, @"""name""\s*:\s*""([^""]+)""");
-                if (matchName.Success && string.IsNullOrEmpty(mappedSpeaker))
+                if (matchName.Success && !hasGlossarySpeaker)
                 {
                     resSpeaker = matchName.Groups[1].Value;
                 }
@@ -567,6 +568,8 @@ public class GeminiTranslator : IDisposable
             return (speaker, string.Empty);
         }
 
+        var (maskedSpeaker, maskedText) = PlayerNameHelper.Mask(speaker, text, config);
+
         var cacheKey = $"{config.PrimaryEngine}::{config.SourceLang}::{config.TargetLang}::{speaker}::{text}";
         if (cache.TryGetValue(cacheKey, out var cached))
         {
@@ -577,19 +580,21 @@ public class GeminiTranslator : IDisposable
         switch (config.PrimaryEngine)
         {
             case TranslationEngine.LmStudio:
-                result = await TranslateWithLmStudioPrimaryAsync(speaker, text, cancellationToken);
+                result = await TranslateWithLmStudioPrimaryAsync(maskedSpeaker, maskedText, cancellationToken);
                 break;
             case TranslationEngine.Youdao:
-                result = await TranslateWithYoudaoPrimaryAsync(speaker, text, cancellationToken);
+                result = await TranslateWithYoudaoPrimaryAsync(maskedSpeaker, maskedText, cancellationToken);
                 break;
             case TranslationEngine.Google:
-                result = await TranslateWithGooglePrimaryAsync(speaker, text, cancellationToken);
+                result = await TranslateWithGooglePrimaryAsync(maskedSpeaker, maskedText, cancellationToken);
                 break;
             case TranslationEngine.Gemini:
             default:
-                result = await TranslateWithGeminiPrimaryAsync(speaker, text, cancellationToken);
+                result = await TranslateWithGeminiPrimaryAsync(maskedSpeaker, maskedText, cancellationToken);
                 break;
         }
+
+        result = (PlayerNameHelper.Unmask(result.s, config), PlayerNameHelper.Unmask(result.t, config));
 
         cache[cacheKey] = result;
         return result;

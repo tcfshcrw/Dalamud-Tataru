@@ -570,6 +570,38 @@ public class ConfigWindow : Window
         ImGui.Separator();
         ImGui.Spacing();
 
+        ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "玩家角色名稱保護 (防止 AI 音譯為漢字)");
+        var detectedPlayerName = PlayerNameHelper.GetPlayerFullName(config);
+        if (!string.IsNullOrEmpty(detectedPlayerName))
+        {
+            ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), $"[已辨識] 當前角色全名：{detectedPlayerName} (名: {PlayerNameHelper.GetPlayerFirstName(config)})");
+        }
+        else
+        {
+            ImGui.TextColored(new Vector4(0.7f, 0.7f, 0.7f, 1.0f), "[未登入] 尚未偵測到遊戲角色，將於登入時自動辨識。");
+        }
+
+        var protectName = config.ProtectPlayerName;
+        if (ImGui.Checkbox("保持玩家角色名稱原文（嚴禁 AI 將英文名音譯為漢字，如 Crew 切勿音譯為克魯威）", ref protectName))
+        {
+            config.ProtectPlayerName = protectName;
+            config.Save();
+        }
+        ImGui.TextDisabled("啟用後，NPC 對話中提及您的名字時，會嚴格保持原英文名稱，絕不被音譯為漢字！");
+
+        var customRep = config.CustomPlayerNameReplacement;
+        ImGui.Text("自訂角色稱呼 / 中文譯名（選填，留空則直接保持原角色英文名）：");
+        if (ImGui.InputText("##CustomPlayerRep", ref customRep, 50))
+        {
+            config.CustomPlayerNameReplacement = customRep;
+            config.Save();
+        }
+        ImGui.TextDisabled("若您希望 NPC 以特定中文稱呼您（例如「克魯」或「阿威」），可填寫於此；若留空，則直接顯示角色原名。");
+
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+
         ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "自訂多語名詞對照表 (Custom Glossary)");
         int customTotal = config.CustomGlossaryEntries?.Count ?? 0;
         int customEnabled = config.CustomGlossaryEntries?.Count(e => e.Enabled) ?? 0;
@@ -868,17 +900,17 @@ public class ConfigWindow : Window
         ImGui.TextDisabled("調整字幕底色深淺：0.00 為全透明（純文字懸浮無黑底），1.00 為純黑完全不透明。");
         ImGui.Spacing();
 
+        var showSpeaker = config.ShowSpeaker;
+        if (ImGui.Checkbox("顯示說話者名稱 (如【巴德隆】)", ref showSpeaker))
+        {
+            config.ShowSpeaker = showSpeaker;
+            config.Save();
+        }
+        ImGui.TextDisabled("在字幕視窗或覆蓋對話框中顯示翻譯後的說話者中文名稱。");
+        ImGui.Spacing();
+
         if (!config.ReplaceGameTalkAddon)
         {
-            var showSpeaker = config.ShowSpeaker;
-            if (ImGui.Checkbox("顯示說話者名稱 (僅獨立字幕模式生效)", ref showSpeaker))
-            {
-                config.ShowSpeaker = showSpeaker;
-                config.Save();
-            }
-            ImGui.TextDisabled("在獨立字幕框模式下顯示說話者名稱。啟用「原生對話框覆蓋模式」時將自動忽略（由遊戲原版姓名條呈現）。");
-            ImGui.Spacing();
-
             var showOriginal = config.ShowOriginalText;
             if (ImGui.Checkbox("顯示日文原文對照 (獨立字幕模式)", ref showOriginal))
             {
@@ -986,6 +1018,14 @@ public class ConfigWindow : Window
             if (config.ReplaceUseNativeBubble)
             {
                 ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), $"[底色偵測] 當前原生泡泡底色狀態：{(dialogueWatcher.IsTalkBubbleDark ? "深色底（自動以白色顯示文字）" : "淺色米白底（自動以黑色顯示文字）")}");
+
+                var hideNativeSpeaker = config.ReplaceHideNativeSpeaker;
+                if (ImGui.Checkbox("隱藏遊戲原生日文說話者姓名框", ref hideNativeSpeaker))
+                {
+                    config.ReplaceHideNativeSpeaker = hideNativeSpeaker;
+                    config.Save();
+                }
+                ImGui.TextDisabled("勾選後，方案 B 將一併隱藏泡泡框上方原生的日文名字（如「バデロン」），改由覆蓋視窗顯示中文譯名（如「【巴德隆】」）。");
             }
 
             if (!config.ReplaceUseParchmentTheme && !config.ReplaceUseNativeBubble)

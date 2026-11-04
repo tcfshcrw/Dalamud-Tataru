@@ -41,6 +41,12 @@ public class Configuration : IPluginConfiguration
     public string LmStudioApiKey { get; set; } = string.Empty;
     public float LmStudioTemperature { get; set; } = 0.2f;
 
+    // Player Character Name Protection
+    public bool ProtectPlayerName { get; set; } = true;
+    public string CustomPlayerNameReplacement { get; set; } = string.Empty;
+    public string ManualPlayerCharacterName { get; set; } = string.Empty;
+    public bool ReplaceHideNativeSpeaker { get; set; } = false;
+
     // Glossary & Custom Terminology
     public bool AutoUpdateGlossary { get; set; } = true;
     public bool ShowStartupNotification { get; set; } = true;

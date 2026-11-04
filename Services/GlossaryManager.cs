@@ -236,6 +236,9 @@ public class GlossaryManager
     {
         if (string.IsNullOrEmpty(text)) return string.Empty;
 
+        // Middle dot punctuation normalization (U+30FB / U+2022 / U+2027 -> Latin-1 U+00B7)
+        text = text.Replace('・', '·').Replace('•', '·').Replace('‧', '·');
+
         // 1. Tataru built-in / downloaded post replacements
         var replacements = targetLang == TargetLanguage.TraditionalChinese ? postReplaceCht : postReplaceChs;
         foreach (var (target, replacement) in replacements)
@@ -296,6 +299,10 @@ public class GlossaryManager
         }
 
         var relevantRules = new List<string>();
+        if (config?.ProtectPlayerName == true)
+        {
+            relevantRules.Add($"- {PlayerNameHelper.PlayerPlaceholder} => {PlayerNameHelper.PlayerPlaceholder} (玩家角色名稱標記，請在輸出中原樣保留，嚴禁音譯為漢字)");
+        }
         foreach (var entry in config.CustomGlossaryEntries)
         {
             if (!entry.Enabled) continue;
@@ -360,7 +367,18 @@ public class GlossaryManager
             new() { Japanese = "エーテル", English = "Aether", TraditionalChinese = "乙太", SimplifiedChinese = "以太", MatchSpeaker = true, MatchDialogue = true, Notes = "核心生命能量" },
             new() { Japanese = "蛮神", English = "Primal", TraditionalChinese = "蠻神", SimplifiedChinese = "蛮神", MatchSpeaker = true, MatchDialogue = true, Notes = "神明概念" },
             new() { Japanese = "エオルゼア", English = "Eorzea", TraditionalChinese = "艾歐澤亞", SimplifiedChinese = "艾欧泽亚", MatchSpeaker = true, MatchDialogue = true, Notes = "主要世界區域" },
-            new() { Japanese = "トライヨラ", English = "Tuliyollal", TraditionalChinese = "圖萊尤拉", SimplifiedChinese = "图拉尤拉", MatchSpeaker = true, MatchDialogue = true, Notes = "7.0 主要城鎮" }
+            new() { Japanese = "トライヨラ", English = "Tuliyollal", TraditionalChinese = "圖萊尤拉", SimplifiedChinese = "图拉尤拉", MatchSpeaker = true, MatchDialogue = true, Notes = "7.0 主要城鎮" },
+            new() { Japanese = "リムサ・ロミンサ", English = "Limsa Lominsa", TraditionalChinese = "利姆薩·羅敏薩", SimplifiedChinese = "利姆萨·罗敏萨", MatchSpeaker = true, MatchDialogue = true, Notes = "海都" },
+            new() { Japanese = "グリダニア", English = "Gridania", TraditionalChinese = "格里達尼亞", SimplifiedChinese = "格里达尼亚", MatchSpeaker = true, MatchDialogue = true, Notes = "森都" },
+            new() { Japanese = "ウルダハ", English = "Ul'dah", TraditionalChinese = "烏爾達哈", SimplifiedChinese = "乌尔达哈", MatchSpeaker = true, MatchDialogue = true, Notes = "沙都" },
+            new() { Japanese = "イシュガルド", English = "Ishgard", TraditionalChinese = "伊修加德", SimplifiedChinese = "伊修加德", MatchSpeaker = true, MatchDialogue = true, Notes = "山都" },
+            new() { Japanese = "クガネ", English = "Kugane", TraditionalChinese = "黃金港", SimplifiedChinese = "黄金港", MatchSpeaker = true, MatchDialogue = true, Notes = "東方城邦" },
+            new() { Japanese = "クリスタリウム", English = "The Crystarium", TraditionalChinese = "水晶都", SimplifiedChinese = "水晶都", MatchSpeaker = true, MatchDialogue = true, Notes = "第一世界主城" },
+            new() { Japanese = "オールド・シャーレアン", English = "Old Sharlayan", TraditionalChinese = "舊薩雷安", SimplifiedChinese = "旧萨雷安", MatchSpeaker = true, MatchDialogue = true, Notes = "知識之都" },
+            new() { Japanese = "シャーレアン", English = "Sharlayan", TraditionalChinese = "薩雷安", SimplifiedChinese = "萨雷安", MatchSpeaker = true, MatchDialogue = true, Notes = "知識之都" },
+            new() { Japanese = "ラザハン", English = "Radz-at-Han", TraditionalChinese = "拉札罕", SimplifiedChinese = "拉札罕", MatchSpeaker = true, MatchDialogue = true, Notes = "近東城邦" },
+            new() { Japanese = "天気予報士", English = "Skywatcher", TraditionalChinese = "天氣預報員", SimplifiedChinese = "天气预报员", MatchSpeaker = true, MatchDialogue = true, Notes = "功能性 NPC" },
+            new() { Japanese = "バデロン", English = "Baderon", TraditionalChinese = "巴德隆", SimplifiedChinese = "巴德隆", MatchSpeaker = true, MatchDialogue = true, Notes = "海都溺愛海豚亭老闆" }
         };
     }
 

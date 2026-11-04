@@ -252,7 +252,8 @@ public class LmStudioTranslator : IDisposable
                 toParse = toParse.Trim();
             }
 
-            string resSpeaker = mappedSpeaker;
+            bool hasGlossarySpeaker = !string.IsNullOrEmpty(mappedSpeaker) && !string.Equals(mappedSpeaker.Trim(), speaker.Trim(), StringComparison.OrdinalIgnoreCase);
+            string resSpeaker = hasGlossarySpeaker ? mappedSpeaker : speaker;
             string resText = text;
 
             try
@@ -263,7 +264,7 @@ public class LmStudioTranslator : IDisposable
                     if (outputObj.TryGetPropertyValue("name", out var aiNameNode))
                     {
                         var aiName = aiNameNode?.ToString()?.Trim();
-                        if (!string.IsNullOrEmpty(aiName) && string.IsNullOrEmpty(mappedSpeaker))
+                        if (!string.IsNullOrEmpty(aiName) && !hasGlossarySpeaker)
                         {
                             resSpeaker = aiName;
                         }
@@ -296,7 +297,7 @@ public class LmStudioTranslator : IDisposable
                     resText = matchText.Groups[1].Value;
                 }
                 var matchName = System.Text.RegularExpressions.Regex.Match(toParse, @"""name""\s*:\s*""([^""]+)""");
-                if (matchName.Success && string.IsNullOrEmpty(mappedSpeaker))
+                if (matchName.Success && !hasGlossarySpeaker)
                 {
                     resSpeaker = matchName.Groups[1].Value;
                 }

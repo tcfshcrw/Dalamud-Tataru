@@ -20,6 +20,7 @@ public unsafe class DialogueWatcher : IDisposable
     public bool IsTalkBubbleDark { get; private set; } = false;
     private bool isTalkAlphaZeroed = false;
     private bool isTalkTextNodeHidden = false;
+    private bool isTalkSpeakerNodeHidden = false;
 
     private string lastSpeaker = string.Empty;
     private string lastText = string.Empty;
@@ -83,6 +84,11 @@ public unsafe class DialogueWatcher : IDisposable
                             talkAddon->AtkTextNode228->AtkResNode.ToggleVisibility(true);
                             isTalkTextNodeHidden = false;
                         }
+                        if (isTalkSpeakerNodeHidden && talkAddon->AtkTextNode220 != null)
+                        {
+                            talkAddon->AtkTextNode220->AtkResNode.ToggleVisibility(true);
+                            isTalkSpeakerNodeHidden = false;
+                        }
                     }
 
                     if (talkAddon->AtkUnitBase.IsVisible)
@@ -124,6 +130,16 @@ public unsafe class DialogueWatcher : IDisposable
                                     {
                                         talkAddon->AtkTextNode228->AtkResNode.ToggleVisibility(false);
                                         isTalkTextNodeHidden = true;
+                                    }
+                                    if (config.ReplaceHideNativeSpeaker && talkAddon->AtkTextNode220 != null)
+                                    {
+                                        talkAddon->AtkTextNode220->AtkResNode.ToggleVisibility(false);
+                                        isTalkSpeakerNodeHidden = true;
+                                    }
+                                    else if (!config.ReplaceHideNativeSpeaker && isTalkSpeakerNodeHidden && talkAddon->AtkTextNode220 != null)
+                                    {
+                                        talkAddon->AtkTextNode220->AtkResNode.ToggleVisibility(true);
+                                        isTalkSpeakerNodeHidden = false;
                                     }
                                 }
                                 else
@@ -332,7 +348,7 @@ public unsafe class DialogueWatcher : IDisposable
     public void RestoreTalkAddonState()
     {
         IsTalkBubbleDark = false;
-        if (isTalkAlphaZeroed || isTalkTextNodeHidden)
+        if (isTalkAlphaZeroed || isTalkTextNodeHidden || isTalkSpeakerNodeHidden)
         {
             try
             {
@@ -351,6 +367,11 @@ public unsafe class DialogueWatcher : IDisposable
                         {
                             talkAddon->AtkTextNode228->AtkResNode.ToggleVisibility(true);
                             isTalkTextNodeHidden = false;
+                        }
+                        if (isTalkSpeakerNodeHidden && talkAddon->AtkTextNode220 != null)
+                        {
+                            talkAddon->AtkTextNode220->AtkResNode.ToggleVisibility(true);
+                            isTalkSpeakerNodeHidden = false;
                         }
                     }
                 }
