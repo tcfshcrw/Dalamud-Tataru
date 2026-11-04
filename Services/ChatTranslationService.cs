@@ -268,9 +268,9 @@ public partial class ChatTranslationService : IDisposable
         var outputType = config.ChatUseEchoChannel ? XivChatType.Echo : chatType;
         var prefix = string.IsNullOrWhiteSpace(config.ChatPrefix) ? "[Tataru]" : config.ChatPrefix.Trim();
 
-        string outOriginal = config.ChatEnableGlyphFolding ? GlyphFolder.Fold(originalText) : originalText;
-        string outTranslated = config.ChatEnableGlyphFolding ? GlyphFolder.Fold(translatedText) : translatedText;
-        string outSender = config.ChatEnableGlyphFolding ? GlyphFolder.Fold(sender) : sender;
+        string outOriginal = config.ChatEnableGlyphFolding ? GlyphFolder.Fold(originalText, config.CustomGlyphEntries) : originalText;
+        string outTranslated = config.ChatEnableGlyphFolding ? GlyphFolder.Fold(translatedText, config.CustomGlyphEntries) : translatedText;
+        string outSender = config.ChatEnableGlyphFolding ? GlyphFolder.Fold(sender, config.CustomGlyphEntries) : sender;
 
         var sb = new SeStringBuilder();
         bool prefixInMessage = string.IsNullOrEmpty(sender) || config.ChatUseEchoChannel;

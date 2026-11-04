@@ -68,10 +68,24 @@ public static partial class GlyphFolder
         }
     }
 
-    public static string Fold(string text)
+    public static string Fold(string text, IEnumerable<DalamudTataru.Models.CustomGlyphEntry>? customEntries = null)
     {
         if (string.IsNullOrEmpty(text))
             return text;
+
+        if (customEntries != null)
+        {
+            foreach (var entry in customEntries)
+            {
+                if (!entry.Enabled || string.IsNullOrEmpty(entry.SourceChar) || string.IsNullOrEmpty(entry.ReplacementChar))
+                    continue;
+
+                if (text.Contains(entry.SourceChar))
+                {
+                    text = text.Replace(entry.SourceChar, entry.ReplacementChar);
+                }
+            }
+        }
 
         Warmup();
         var glyphSet = supportedChars ?? FrozenSet<char>.Empty;

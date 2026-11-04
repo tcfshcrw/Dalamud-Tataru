@@ -71,6 +71,12 @@ public class Configuration : IPluginConfiguration
     public bool ChatFilterMacros { get; set; } = true;
     public bool ChatFilterLinks { get; set; } = true;
     public bool ChatEnableGlyphFolding { get; set; } = true;
+    private List<DalamudTataru.Models.CustomGlyphEntry>? customGlyphEntries;
+    public List<DalamudTataru.Models.CustomGlyphEntry> CustomGlyphEntries
+    {
+        get => customGlyphEntries ??= new();
+        set => customGlyphEntries = value ?? new();
+    }
     private List<Dalamud.Game.Text.XivChatType>? selectedChatTypes;
     public List<Dalamud.Game.Text.XivChatType> SelectedChatTypes
     {

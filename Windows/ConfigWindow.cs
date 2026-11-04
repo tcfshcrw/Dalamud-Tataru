@@ -70,6 +70,17 @@ public class ConfigWindow : Window
     private string testResultDialogue = string.Empty;
     private string testMatchedRules = string.Empty;
     private bool showClearAllConfirm = false;
+    // Custom Glyph Folding State
+    private string glyphSearchFilter = string.Empty;
+    private bool isEditingGlyph = false;
+    private string? editingGlyphId = null;
+    private string editGlyphSource = string.Empty;
+    private string editGlyphReplacement = string.Empty;
+    private string editGlyphNotes = string.Empty;
+    private string glyphValidationMsg = string.Empty;
+    private string glyphTestInput = "薫衣草苗圃、卡片、店舖、甦醒";
+    private string glyphTestOutput = string.Empty;
+    private bool showClearAllGlyphsConfirm = false;
 
     private static string[] PromptPresetTemplates => PromptPresets.Templates;
 
@@ -104,6 +115,12 @@ public class ConfigWindow : Window
 
         Size = new Vector2(760, 680);
         SizeCondition = ImGuiCond.FirstUseEver;
+
+        if (this.config.CustomGlyphEntries.Count == 0)
+        {
+            this.config.CustomGlyphEntries = CustomGlyphEntry.GetDefaultPresets();
+            this.config.Save();
+        }
     }
 
     public override void Draw()
@@ -254,6 +271,11 @@ public class ConfigWindow : Window
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.SetTooltip("自動檢查原生 AXIS 字型缺失字元並替換為視覺相近字 (例如將「卡」轉為「カ」，避免遊戲聊天框顯示為「＝」等號)。\n若您有安裝 FontReplace / XivAlexander 等完整中文字型替換工具，可取消此選項以輸出純漢字。");
+                }
+
+                if (config.ChatEnableGlyphFolding)
+                {
+                    DrawCustomGlyphSection();
                 }
 
                 var prefix = config.ChatPrefix;
@@ -2447,5 +2469,301 @@ public class ConfigWindow : Window
     }
 
     #endregion
+
+
+    private void DrawCustomGlyphSection()
+    {
+        ImGui.Spacing();
+        int total = config.CustomGlyphEntries?.Count ?? 0;
+        int enabled = config.CustomGlyphEntries?.Count(e => e.Enabled) ?? 0;
+
+        ImGui.PushStyleColor(ImGuiCol.Header, new Vector4(0.2f, 0.35f, 0.5f, 0.6f));
+        bool open = ImGui.CollapsingHeader($"自訂缺字對照表 (Custom Glyph Mappings) [{enabled}/{total} 啟用]###CustomGlyphHeader", ImGuiTreeNodeFlags.DefaultOpen);
+        ImGui.PopStyleColor();
+
+        if (!open) return;
+
+        ImGui.Indent(10f);
+        ImGui.TextColored(new Vector4(0.85f, 0.85f, 0.85f, 1.0f), "當遊戲中某些繁體字因為 AXIS 字型庫未收錄而變成等號「=」時，可在此設定替換字（例如「薰」➔「薫」）。");
+
+        // Action Toolbar
+        if (ImGui.Button("+ 新增缺字對照###AddGlyphBtn", new Vector2(0, 26)))
+        {
+            StartNewGlyphEntry();
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("載入常見缺字範本###LoadGlyphPresetsBtn", new Vector2(0, 26)))
+        {
+            LoadPresetGlyphEntries();
+        }
+        ImGui.SameLine();
+        if (!showClearAllGlyphsConfirm)
+        {
+            if (ImGui.Button("清空缺字表###ClearGlyphsBtn", new Vector2(0, 26)))
+            {
+                showClearAllGlyphsConfirm = true;
+            }
+        }
+        else
+        {
+            ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), "確定清空？");
+            ImGui.SameLine();
+            if (ImGui.Button("確認清空###ConfirmClearGlyphs", new Vector2(0, 26)))
+            {
+                config.CustomGlyphEntries?.Clear();
+                config.Save();
+                showClearAllGlyphsConfirm = false;
+                isEditingGlyph = false;
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("取消###CancelClearGlyphs", new Vector2(0, 26)))
+            {
+                showClearAllGlyphsConfirm = false;
+            }
+        }
+
+        // Live Test Box
+        ImGui.Spacing();
+        ImGui.TextColored(new Vector4(0.4f, 0.9f, 1.0f, 1.0f), "即時字形替換測試 (Live Preview)：");
+        ImGui.SetNextItemWidth(300 * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
+        if (ImGui.InputText("測試輸入字串###GlyphTestInput", ref glyphTestInput, 100))
+        {
+            glyphTestOutput = GlyphFolder.Fold(glyphTestInput, config.CustomGlyphEntries);
+        }
+        if (string.IsNullOrEmpty(glyphTestOutput) && !string.IsNullOrEmpty(glyphTestInput))
+        {
+            glyphTestOutput = GlyphFolder.Fold(glyphTestInput, config.CustomGlyphEntries);
+        }
+        ImGui.SameLine();
+        ImGui.TextDisabled("➔ 替換結果：");
+        ImGui.SameLine();
+        ImGui.TextColored(new Vector4(0.4f, 1.0f, 0.6f, 1.0f), string.IsNullOrEmpty(glyphTestOutput) ? "(請輸入文字測試)" : glyphTestOutput);
+
+        // Edit Modal / Form
+        if (isEditingGlyph)
+        {
+            DrawGlyphEditor();
+        }
+
+        // Search Filter & Table
+        ImGui.Spacing();
+        ImGui.SetNextItemWidth(220 * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
+        ImGui.InputTextWithHint("##GlyphFilter", "搜尋原字/替換字/備註...", ref glyphSearchFilter, 50);
+
+        DrawGlyphTable();
+        ImGui.Unindent(10f);
+        ImGui.Spacing();
+    }
+
+    private void DrawGlyphTable()
+    {
+        var entries = config.CustomGlyphEntries ?? new List<CustomGlyphEntry>();
+        var filter = glyphSearchFilter?.Trim() ?? string.Empty;
+
+        var filtered = entries.Where(e =>
+            string.IsNullOrEmpty(filter) ||
+            (!string.IsNullOrEmpty(e.SourceChar) && e.SourceChar.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrEmpty(e.ReplacementChar) && e.ReplacementChar.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrEmpty(e.Notes) && e.Notes.Contains(filter, StringComparison.OrdinalIgnoreCase))
+        ).ToList();
+
+        if (filtered.Count == 0)
+        {
+            ImGui.TextDisabled(string.IsNullOrEmpty(filter) ? "目前尚無任何自訂缺字項目。點擊「載入常見缺字範本」或「+ 新增缺字對照」開始！" : "找不到符合搜尋條件的缺字項目。");
+            return;
+        }
+
+        var tableFlags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.NoSavedSettings;
+        var tableSize = new Vector2(-1, 200);
+
+        if (ImGui.BeginTable("CustomGlyphEntriesTable", 5, tableFlags, tableSize))
+        {
+            ImGui.TableSetupColumn("啟用", ImGuiTableColumnFlags.WidthFixed, 42);
+            ImGui.TableSetupColumn("缺字 / 原字 (Source)", ImGuiTableColumnFlags.WidthStretch, 1.0f);
+            ImGui.TableSetupColumn("替換字 / 相容字 (Replacement)", ImGuiTableColumnFlags.WidthStretch, 1.0f);
+            ImGui.TableSetupColumn("備註說明", ImGuiTableColumnFlags.WidthStretch, 1.2f);
+            ImGui.TableSetupColumn("操作", ImGuiTableColumnFlags.WidthFixed, 130);
+            ImGui.TableHeadersRow();
+
+            CustomGlyphEntry? toDelete = null;
+
+            foreach (var entry in filtered)
+            {
+                ImGui.TableNextRow();
+
+                // 1. Enabled
+                ImGui.TableSetColumnIndex(0);
+                var enabled = entry.Enabled;
+                if (ImGui.Checkbox($"##glyphen_{entry.Id}", ref enabled))
+                {
+                    entry.Enabled = enabled;
+                    config.Save();
+                }
+
+                // 2. Source
+                ImGui.TableSetColumnIndex(1);
+                ImGui.TextColored(new Vector4(1.0f, 0.45f, 0.45f, 1.0f), entry.SourceChar);
+
+                // 3. Replacement
+                ImGui.TableSetColumnIndex(2);
+                ImGui.TextColored(new Vector4(0.4f, 1.0f, 0.6f, 1.0f), entry.ReplacementChar);
+
+                // 4. Notes
+                ImGui.TableSetColumnIndex(3);
+                if (!string.IsNullOrWhiteSpace(entry.Notes))
+                {
+                    ImGui.TextDisabled(entry.Notes);
+                }
+                else
+                {
+                    ImGui.TextDisabled("-");
+                }
+
+                // 5. Actions
+                ImGui.TableSetColumnIndex(4);
+                ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(6, 2));
+                if (ImGui.Button($"編輯##g_{entry.Id}"))
+                {
+                    StartEditGlyphEntry(entry);
+                }
+                ImGui.SameLine();
+                if (ImGui.Button($"刪除##g_{entry.Id}"))
+                {
+                    toDelete = entry;
+                }
+                ImGui.PopStyleVar();
+            }
+
+            ImGui.EndTable();
+
+            if (toDelete != null)
+            {
+                config.CustomGlyphEntries?.Remove(toDelete);
+                if (editingGlyphId == toDelete.Id)
+                {
+                    isEditingGlyph = false;
+                }
+                config.Save();
+            }
+        }
+    }
+
+    private void DrawGlyphEditor()
+    {
+        ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.18f, 0.22f, 0.28f, 0.95f));
+        ImGui.BeginChild("GlyphEditorBox", new Vector2(0, 140), true, ImGuiWindowFlags.NoScrollbar);
+
+        ImGui.TextColored(new Vector4(0.9f, 0.8f, 0.3f, 1.0f),
+            string.IsNullOrEmpty(editingGlyphId) ? "新增缺字替換對照" : "編輯缺字替換對照");
+
+        ImGui.Spacing();
+
+        ImGui.SetNextItemWidth(120 * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
+        ImGui.InputTextWithHint("##SourceChar", "原字 (如: 薰)", ref editGlyphSource, 20);
+        ImGui.SameLine();
+        ImGui.Text("➔");
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(120 * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
+        ImGui.InputTextWithHint("##ReplacementChar", "替換字 (如: 薫)", ref editGlyphReplacement, 20);
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(200 * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
+        ImGui.InputTextWithHint("##GlyphNotes", "備註說明 (選填)", ref editGlyphNotes, 50);
+
+        if (!string.IsNullOrEmpty(glyphValidationMsg))
+        {
+            ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), glyphValidationMsg);
+        }
+
+        ImGui.Spacing();
+        if (ImGui.Button("儲存此項目###SaveGlyphBtn", new Vector2(100, 26)))
+        {
+            SaveCurrentGlyphEntry();
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("取消編輯###CancelGlyphBtn", new Vector2(80, 26)))
+        {
+            isEditingGlyph = false;
+            glyphValidationMsg = string.Empty;
+        }
+
+        ImGui.EndChild();
+        ImGui.PopStyleColor();
+    }
+
+    private void StartNewGlyphEntry()
+    {
+        isEditingGlyph = true;
+        editingGlyphId = null;
+        editGlyphSource = string.Empty;
+        editGlyphReplacement = string.Empty;
+        editGlyphNotes = string.Empty;
+        glyphValidationMsg = string.Empty;
+    }
+
+    private void StartEditGlyphEntry(CustomGlyphEntry entry)
+    {
+        isEditingGlyph = true;
+        editingGlyphId = entry.Id;
+        editGlyphSource = entry.SourceChar;
+        editGlyphReplacement = entry.ReplacementChar;
+        editGlyphNotes = entry.Notes;
+        glyphValidationMsg = string.Empty;
+    }
+
+    private void SaveCurrentGlyphEntry()
+    {
+        if (string.IsNullOrWhiteSpace(editGlyphSource))
+        {
+            glyphValidationMsg = "請填寫欲替換的「原字 / 缺字」！";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editGlyphReplacement))
+        {
+            glyphValidationMsg = "請填寫目標「替換字 / 相容字」！";
+            return;
+        }
+
+        if (string.IsNullOrEmpty(editingGlyphId))
+        {
+            config.CustomGlyphEntries.Add(new CustomGlyphEntry
+            {
+                SourceChar = editGlyphSource.Trim(),
+                ReplacementChar = editGlyphReplacement.Trim(),
+                Notes = editGlyphNotes.Trim()
+            });
+        }
+        else
+        {
+            var existing = config.CustomGlyphEntries.Find(e => e.Id == editingGlyphId);
+            if (existing != null)
+            {
+                existing.SourceChar = editGlyphSource.Trim();
+                existing.ReplacementChar = editGlyphReplacement.Trim();
+                existing.Notes = editGlyphNotes.Trim();
+            }
+        }
+
+        config.Save();
+        isEditingGlyph = false;
+        glyphValidationMsg = string.Empty;
+        glyphTestOutput = GlyphFolder.Fold(glyphTestInput, config.CustomGlyphEntries);
+    }
+
+    private void LoadPresetGlyphEntries()
+    {
+        var presets = CustomGlyphEntry.GetDefaultPresets();
+        int added = 0;
+        foreach (var p in presets)
+        {
+            if (!config.CustomGlyphEntries.Any(e => string.Equals(e.SourceChar, p.SourceChar, StringComparison.OrdinalIgnoreCase)))
+            {
+                config.CustomGlyphEntries.Add(p);
+                added++;
+            }
+        }
+        config.Save();
+        glyphTestOutput = GlyphFolder.Fold(glyphTestInput, config.CustomGlyphEntries);
+    }
 
 }
