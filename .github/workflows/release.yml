@@ -80,12 +80,13 @@ jobs:
           "DALAMUD_HOME=$dalamudPath" >> $env:GITHUB_ENV
 
       - name: Restore dependencies
-        run: dotnet restore
+        shell: pwsh
+        run: dotnet restore -p:Platform=x64 -p:DalamudLibPath="$env:DALAMUD_HOME/"
 
       - name: Build and Package Plugin
         shell: pwsh
         run: |
-          dotnet build --configuration Release -p:Platform=x64 -p:Version=${{ env.ASSEMBLY_VERSION }} -p:DalamudLibPath="$env:DALAMUD_HOME/" --no-restore
+          dotnet build --configuration Release -p:Platform=x64 -p:Version=${{ env.ASSEMBLY_VERSION }} -p:DalamudLibPath="$env:DALAMUD_HOME/" -v:normal
 
       - name: Update pluginmaster.json and Prepare Release Artifacts
         shell: pwsh
