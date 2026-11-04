@@ -89,6 +89,12 @@ public class Configuration : IPluginConfiguration
     public bool TranslateBattleTalk { get; set; } = true;
     public bool TranslateSubtitle { get; set; } = true;
 
+    // Quest Journal & Addon Translation Toggles
+    public bool TranslateJournalDetail { get; set; } = true;
+    public bool TranslateJournalAccept { get; set; } = true;
+    public bool TranslateJournalResult { get; set; } = true;
+    public bool QuestEnableGlyphFolding { get; set; } = true;
+
     // UI Overlay Settings
     public bool ReplaceGameTalkAddon { get; set; } = false;
     public float ReplaceFontScale { get; set; } = 1.0f;

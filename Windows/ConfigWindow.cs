@@ -29,6 +29,7 @@ public class ConfigWindow : Window
     private readonly ChatTranslationService? chatTranslationService;
     private readonly ChatHistoryWindow? chatHistoryWindow;
     private readonly IFontHandle? fontHandle;
+    private readonly QuestJournalWatcher? questJournalWatcher;
 
     private bool showApiKey = false;
     private string testStatus = string.Empty;
@@ -96,7 +97,7 @@ public class ConfigWindow : Window
         "自訂模型 (Custom)"
     };
 
-    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, DialogueReplaceOverlayWindow replaceOverlayWindow, DialogueWatcher dialogueWatcher, GlossaryManager glossary, GlossaryEditorWindow? glossaryEditorWindow = null, ChatTranslationService? chatTranslationService = null, ChatHistoryWindow? chatHistoryWindow = null, IFontHandle? fontHandle = null)
+    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, DialogueReplaceOverlayWindow replaceOverlayWindow, DialogueWatcher dialogueWatcher, GlossaryManager glossary, GlossaryEditorWindow? glossaryEditorWindow = null, ChatTranslationService? chatTranslationService = null, ChatHistoryWindow? chatHistoryWindow = null, IFontHandle? fontHandle = null, QuestJournalWatcher? questJournalWatcher = null)
         : base("Tataru Native Translator 設定###TataruConfigWindow")
     {
         this.config = config;
@@ -112,6 +113,7 @@ public class ConfigWindow : Window
         this.chatTranslationService = chatTranslationService;
         this.chatHistoryWindow = chatHistoryWindow;
         this.fontHandle = fontHandle;
+        this.questJournalWatcher = questJournalWatcher;
 
         Size = new Vector2(760, 680);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -886,6 +888,53 @@ public class ConfigWindow : Window
         {
             config.TranslateBattleTalk = battle;
             config.Save();
+        }
+
+        ImGui.Spacing();
+        ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "任務說明欄與日誌翻譯替換 (參考 Echoglossian 架構)");
+        ImGui.TextDisabled("在遊戲開啟任務詳細說明欄或接取/回報任務時，自動將任務背景說明、內文與標題替換為翻譯後文字。");
+
+        var jDetail = config.TranslateJournalDetail;
+        if (ImGui.Checkbox("任務詳細說明欄 (JournalDetail)", ref jDetail))
+        {
+            config.TranslateJournalDetail = jDetail;
+            config.Save();
+        }
+        ImGui.SameLine();
+        ImGui.TextDisabled("(點擊日誌或地圖任務時彈出的任務詳細面板)");
+
+        var jAccept = config.TranslateJournalAccept;
+        if (ImGui.Checkbox("接取任務確認視窗 (JournalAccept)", ref jAccept))
+        {
+            config.TranslateJournalAccept = jAccept;
+            config.Save();
+        }
+        ImGui.SameLine();
+        ImGui.TextDisabled("(向 NPC 接取任務時的確認說明視窗)");
+
+        var jResult = config.TranslateJournalResult;
+        if (ImGui.Checkbox("回報完成任務視窗 (JournalResult)", ref jResult))
+        {
+            config.TranslateJournalResult = jResult;
+            config.Save();
+        }
+        ImGui.SameLine();
+        ImGui.TextDisabled("(完成任務回報時的獎勵與總結說明視窗)");
+
+        var jFold = config.QuestEnableGlyphFolding;
+        if (ImGui.Checkbox("任務翻譯文字啟用生僻字摺疊映射保護 (防止缺字方塊/問號)", ref jFold))
+        {
+            config.QuestEnableGlyphFolding = jFold;
+            config.Save();
+        }
+
+        if (questJournalWatcher != null && questJournalWatcher.CacheCount > 0)
+        {
+            ImGui.SameLine();
+            if (ImGui.SmallButton($"清除任務翻譯快取 ({questJournalWatcher.CacheCount} 筆)"))
+            {
+                questJournalWatcher.ClearCache();
+            }
         }
 
         ImGui.Spacing();

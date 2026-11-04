@@ -47,6 +47,7 @@ public class Plugin : IDalamudPlugin
     private readonly GeminiTranslator translator;
     private readonly ChatTranslationService chatTranslationService;
     private readonly DialogueWatcher dialogueWatcher;
+    private readonly QuestJournalWatcher questJournalWatcher;
     private readonly SubtitleOverlayWindow overlayWindow;
     private readonly DialogueReplaceOverlayWindow replaceOverlayWindow;
     private readonly GlossaryEditorWindow glossaryEditorWindow;
@@ -104,12 +105,13 @@ public class Plugin : IDalamudPlugin
         dialogueWatcher.OnDialogueClosed += HandleDialogueClosed;
 
         GlyphFolder.Initialize(DataManager, PluginLog);
+        questJournalWatcher = new QuestJournalWatcher(Framework, GameGui, PluginLog, Configuration, translator);
         chatTranslationService = new ChatTranslationService(Configuration, translator, ChatGui, ClientState, Condition, PluginLog);
         overlayWindow = new SubtitleOverlayWindow(Configuration, CjkFontHandle);
         replaceOverlayWindow = new DialogueReplaceOverlayWindow(Configuration, dialogueWatcher, CjkFontHandle);
         glossaryEditorWindow = new GlossaryEditorWindow(Configuration, glossaryManager, CjkFontHandle);
         chatHistoryWindow = new ChatHistoryWindow(Configuration, chatTranslationService, CjkFontHandle);
-        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, replaceOverlayWindow, dialogueWatcher, glossaryManager, glossaryEditorWindow, chatTranslationService, chatHistoryWindow, CjkFontHandle);
+        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, replaceOverlayWindow, dialogueWatcher, glossaryManager, glossaryEditorWindow, chatTranslationService, chatHistoryWindow, CjkFontHandle, questJournalWatcher);
 
         WindowSystem.AddWindow(overlayWindow);
         WindowSystem.AddWindow(replaceOverlayWindow);
@@ -587,6 +589,7 @@ public class Plugin : IDalamudPlugin
         dialogueWatcher.OnDialogueChanged -= HandleDialogueChanged;
         dialogueWatcher.OnDialogueClosed -= HandleDialogueClosed;
         dialogueWatcher.Dispose();
+        questJournalWatcher.Dispose();
         chatTranslationService.Dispose();
 
         translator.Dispose();

@@ -1,11 +1,11 @@
 <div align="center">
   <img src="images/icon.png" width="128" height="128" alt="Tataru Native Translator Logo" />
   <h1>Tataru Native Translator (Dalamud-Tataru)</h1>
-  <p><strong>一款為 Final Fantasy XIV (FFXIV) 玩家打造的原生遊戲內即時劇情翻譯插件</strong></p>
+  <p><strong>一款為 Final Fantasy XIV (FFXIV) 玩家打造的原生遊戲內即時劇情、任務與聊天翻譯插件</strong></p>
 </div>
 
-一款為 **Final Fantasy XIV (FFXIV)** 玩家打造的**原生遊戲內即時劇情翻譯插件**。  
-整合 **[Tataru Assistant](https://github.com/winw1010/tataru-assistant)** 的專有名詞與人名辭典，並透過 **Google Gemini AI** / **本地 LM Studio 大模型** 進行非同步即時翻譯。
+一款為 **Final Fantasy XIV (FFXIV)** 玩家打造的**原生遊戲內即時全方位翻譯插件**。  
+整合 **[Tataru Assistant](https://github.com/winw1010/tataru-assistant)** 的專有名詞與人名辭典，並透過 **Google Gemini AI** / **本地 LM Studio 大模型** / **有道翻譯** / **Google 翻譯** 進行非同步即時翻譯。
 
 ---
 
@@ -13,8 +13,22 @@
 
 - **純原生遊戲內運行**：直接作為 Dalamud Plugin 運行於遊戲內部，**不需要開啟任何外部 exe 程式或 Electron 視窗**。
 - **極致精準的對話攔截**：透過 Dalamud 記憶體直接抓取遊戲 UI 文字（`AddonTalk` 主線支線對話、`TalkSubtitle` 過場 CG 字幕、`AddonBattleTalk` 副本首領喊話），零延遲且絕不漏字，再也不用依賴脆弱的 OCR 或外部指針掃描。
+- **任務詳細說明與日誌原位替換（參考 Echoglossian 架構）**：
+  - **`JournalDetail`（任務詳細說明欄）**：開啟日誌或點選地圖任務時，將任務背景故事、內文與標題直接替換為流暢中文。
+  - **`JournalAccept`（接取任務確認視窗）**：向 NPC 接取任務時直接閱讀中文任務說明與條件。
+  - **`JournalResult`（回報任務結算視窗）**：完成任務交接時劇情總結文字同步原位替換。
+  - 內建非同步執行緒安全防迴圈快取，開啟過之任務 0 毫秒秒出，不卡頓且不浪費 API 額度。
+- **全聊天頻道即時翻譯（參考 ChatTranslation 架構）**：
+  - 支援小隊、部隊、大喊、密語、說話、團隊、系統訊息等細緻頻道過濾。
+  - 可選擇「直接輸出至聊天視窗（支援原味顏色標籤與自訂前綴）」或「開啟獨立聊天翻譯歷史視窗 (`/tataru chat`)」。
+  - 內建巨集過濾、網址忽略、自己發言過濾與副本自動啟用開關。
+- **遊戲字型缺字保護與生僻字摺疊映射 (GlyphFolder)**：
+  - 自動比對遊戲原裝字型（`axis_12.fdt`）字元集，將日語客戶端未收錄之中文漢字無損替換為同形字或相似字（如「薫」->「薫」），徹底杜絕介面出現「?」或缺字方塊。
+  - 提供獨立的自訂字元對照表編輯器、預設常用字庫與即時預覽測試器。
 - **Tataru 繁簡專有名詞辭典整合**：內建 Tataru 原版 `jp-ch-name.json` 與 `after-translation-*.json` 譯後名詞校正，NPC 姓名與艾歐澤亞專有名詞精準對齊官方中文在地化。
-- **Gemini AI 智能翻譯**：預設採用最新 `gemini-3.8-flash`（並支援一鍵從 Google API 同步最新模型清單），翻譯語氣自然流暢、反應迅速，且具備本地快取機制（重複對話秒出，省 API 額度）。
+- **多引擎無縫備援防線 (Multi-Engine & Fallback Pipeline)**：
+  - **主引擎**：預設採用最新 `gemini-3.8-flash`（支援一鍵同步最新模型清單）或本機部署的 LM Studio 大模型。
+  - **智慧備援**：當 Gemini 或 LM Studio 額度受限或網路逾時，自動無縫切換至有道翻譯與 100% 免費的 Google Translate 備用防線。
 - **多語自訂對照表 (Custom Glossary)**：全新支援「日文 (JP) / 英文 (EN) / 繁體中文 (CHT) / 簡體中文 (CHS)」四語自訂名詞對照，獨立以 `CustomGlossary.json` 儲存，安全分享無資安顧慮，並自動注入 AI 提示詞與後處理雙重校正。
 - **雙模式自由切換**：
   - **沉浸式原生對話框覆蓋模式 (Replace Mode)**：保留遊戲原生對話泡泡底圖與跳動金箭頭，直接在原對話框內覆蓋流暢中文譯文，宛如官方繁中版體驗。
@@ -42,6 +56,22 @@
   - 支援獨立微調日文原文縮放比例（預設 0.75 倍），對照清晰又不搶版面。
 - **一鍵快速切換**：
   - 遊戲聊天框輸入 `/tataru replace`（或 `/tataru replace on` / `off`）即可隨時在「獨立字幕視窗」與「原生對話框覆蓋」之間自由切換。
+
+---
+
+## 任務說明與日誌翻譯替換 (Quest Journal & Detail)
+
+參考了 **Echoglossian** 插件的 Native-Window 介面替換哲學，深入遊戲原生 UI 樹：
+
+1. **全面支援三大任務視窗**：
+   - **`JournalDetail`（任務詳細說明欄）**：在任務日誌面板或點擊地圖任務點開啟的任務詳細資訊框，背景設定與任務步驟完整中文化。
+   - **`JournalAccept`（接取任務視窗）**：接任務時彈出的羊皮紙委託書，任務標題與說明文字直接替換。
+   - **`JournalResult`（回報任務視窗）**：回報任務交差時，劇情收尾總結說明直接替換。
+2. **非同步安全渲染**：
+   - 背景非同步翻譯，主執行緒安全執行 `AtkTextNode->SetText` 與 `ResizeNodeForCurrentText`，徹底杜絕遊戲崩潰。
+   - 本地記憶體對照快取，已翻過內容瞬間載入。
+3. **字型字元摺疊保護**：
+   - 自動連動 `GlyphFolder`，確保長篇任務背景說明在遊戲內不會因缺字出現方塊問號。
 
 ---
 
@@ -75,16 +105,23 @@ Dalumud-Tataru/
 ├── Models/
 │   ├── DialogueEntry.cs            # 對話資料模型與語言設定定義
 │   ├── CustomGlossaryEntry.cs      # 自訂多語名詞對照表資料結構
+│   ├── CustomGlyphEntry.cs         # 自訂缺字摺疊替換資料結構
 │   ├── ChatChannelHelper.cs        # 聊天頻道與系統訊息分類/色彩對照定義
 │   └── ChatHistoryEntry.cs         # 聊天翻譯歷史資料結構
 ├── Services/
-│   ├── DialogueWatcher.cs          # 遊戲原生對話/字幕視窗監聽器
+│   ├── DialogueWatcher.cs          # 遊戲原生對話/字幕視窗監聽器 (Talk / Subtitle / BattleTalk)
+│   ├── QuestJournalWatcher.cs      # 任務詳細說明欄與接取/回報視窗原生替換服務 (JournalDetail / Accept / Result)
 │   ├── ChatTranslationService.cs   # 對話欄與系統訊息即時監聽、非同步翻譯與輸出服務
+│   ├── GlyphFolder.cs              # 遊戲原生 AXIS 字型缺字檢測與相似字摺疊服務
+│   ├── GlyphFolder.FoldTable.cs    # 靜態字元映射字典檔
 │   ├── GeminiTranslator.cs         # Google Gemini REST API 非同步翻譯與快取服務
 │   ├── LmStudioTranslator.cs       # LM Studio 本地大模型翻譯服務
-│   └── GlossaryManager.cs          # 專有名詞讀取、自訂對照表持久化與文本校正服務
+│   ├── YoudaoTranslator.cs         # 有道線上翻譯與備用防線服務
+│   ├── GoogleTranslator.cs         # Google 免費公共線上翻譯服務
+│   ├── GlossaryManager.cs          # 專有名詞讀取、自訂對照表持久化與文本校正服務
+│   └── PlayerNameHelper.cs         # 玩家自身角色名稱防洩漏保護工具
 ├── Windows/
-│   ├── ConfigWindow.cs             # 插件設定介面 (AI、聊天頻道、自訂對照表、提示詞、外觀)
+│   ├── ConfigWindow.cs             # 插件設定介面 (AI、聊天頻道、任務說明、自訂對照表、外觀)
 │   ├── ChatHistoryWindow.cs        # 獨立聊天與系統翻譯歷史紀錄懸浮視窗
 │   ├── GlossaryEditorWindow.cs     # 獨立自訂名詞對照表編輯器視窗 (支援手動儲存與測試)
 │   ├── SubtitleOverlayWindow.cs    # ImGui 原生字幕懸浮視窗
@@ -148,5 +185,7 @@ Dalumud-Tataru/
 
 ## 致敬與感謝
 
-- 感謝 [winw1010/tataru-assistant](https://github.com/winw1010/tataru-assistant) 團隊為 FF14 中文社群長期整理的專有名詞庫與譯名對照表。
-- 感謝 **Dalamud** 開發團隊提供優秀的 FFXIV 插件生態。
+- **[winw1010/tataru-assistant](https://github.com/winw1010/tataru-assistant)**：感謝 Tataru Assistant 團隊為 FF14 中文社群長期整理與維護的專有名詞庫與譯名對照表。
+- **[lokinmodar/Echoglossian](https://github.com/lokinmodar/Echoglossian)**：感謝 Echoglossian 開發團隊，本插件的任務詳細說明欄與接取/回報視窗原生替換機制（`JournalDetail` / `JournalAccept` / `JournalResult`）深獲其架構啟發與技術借鏡。
+- **[kalilistic/ChatTranslation](https://github.com/kalilistic/ChatTranslation)**：感謝 ChatTranslation 開發團隊，為本插件的聊天頻道即時監聽、色彩標籤重現與訊息分流過濾提供了極具價值的設計參考。
+- **[Dalamud](https://github.com/goatcorp/Dalamud)**：感謝 Goatcorp 與 Dalamud 團隊為 Final Fantasy XIV 打造的卓越插件生態與開發框架。
