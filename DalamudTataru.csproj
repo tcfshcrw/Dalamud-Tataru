@@ -14,8 +14,8 @@
     <Company>Tataru Assistant Community</Company>
     <Version>0.26.45.200</Version>
     <Description>Native Dalamud plugin for real-time Japanese to Traditional/Simplified Chinese dialogue and subtitle translation powered by Google Gemini and Tataru Assistant dictionaries.</Description>
-    <PackageProjectUrl>https://github.com/tcfshcrw/Dalumud-Tataru</PackageProjectUrl>
-    <IconUrl>https://raw.githubusercontent.com/tcfshcrw/Dalumud-Tataru/main/images/icon.png</IconUrl>
+    <PackageProjectUrl>https://github.com/tcfshcrw/dalamud-tataru</PackageProjectUrl>
+    <IconUrl>https://raw.githubusercontent.com/tcfshcrw/dalamud-tataru/main/images/icon.png</IconUrl>
   </PropertyGroup>
 
   <ItemGroup>

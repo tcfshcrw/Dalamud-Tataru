@@ -96,7 +96,7 @@
 ## 專案目錄結構
 
 ```
-Dalumud-Tataru/
+dalamud-tataru/
 ├── Data/
 │   ├── jp-ch-name.json             # 日中 NPC/人名對照表 (來自 Tataru 原版)
 │   ├── en-ch-name.json             # 英中 NPC/專有名詞對照表
@@ -140,7 +140,7 @@ Dalumud-Tataru/
 2. 切換至 **「實驗性功能 (Experimental)」** 分頁。
 3. 找到 **「自訂插件庫 (Custom Plugin Repositories)」** 區塊，新增以下網址並儲存：
    ```
-   https://raw.githubusercontent.com/tcfshcrw/Dalumud-Tataru/main/pluginmaster.json
+   https://raw.githubusercontent.com/tcfshcrw/dalamud-tataru/main/pluginmaster.json
    ```
 4. 開啟插件安裝器 (`/xlplugins`)，搜尋 **Tataru Native Translator** 即可一鍵安裝與自動更新！
 
