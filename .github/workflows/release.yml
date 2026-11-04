@@ -86,7 +86,18 @@ jobs:
       - name: Build and Package Plugin
         shell: pwsh
         run: |
-          dotnet build --configuration Release -p:Platform=x64 -p:Version=${{ env.ASSEMBLY_VERSION }} -p:DalamudLibPath="$env:DALAMUD_HOME/" -v:normal
+          $buildOutput = @()
+          try {
+              dotnet build --configuration Release -p:Platform=x64 -p:Version=${{ env.ASSEMBLY_VERSION }} -p:DalamudLibPath="$env:DALAMUD_HOME/" 2>&1 | ForEach-Object {
+                  Write-Host $_
+                  $buildOutput += $_
+              }
+          } finally {
+              "### Build Log`n````n$($buildOutput -join "`n")`n```" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+          }
+          if ($LASTEXITCODE -ne 0) {
+              throw "dotnet build failed with exit code $LASTEXITCODE"
+          }
 
       - name: Update pluginmaster.json and Prepare Release Artifacts
         shell: pwsh
