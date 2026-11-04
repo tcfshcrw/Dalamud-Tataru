@@ -1,6 +1,7 @@
 using System;
 using System.Text.RegularExpressions;
 using Dalamud.Game.ClientState.Objects.SubKinds;
+using DalamudTataru;
 using DalamudTataru.Models;
 
 namespace DalamudTataru.Services;
@@ -22,7 +23,7 @@ public static class PlayerNameHelper
     {
         try
         {
-            var localPlayer = Plugin.ClientState?.LocalPlayer;
+            var localPlayer = DalamudTataru.Plugin.ClientState?.LocalPlayer;
             if (localPlayer != null && !string.IsNullOrWhiteSpace(localPlayer.Name.TextValue))
             {
                 LastKnownPlayerFullName = localPlayer.Name.TextValue.Trim();
