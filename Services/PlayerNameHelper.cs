@@ -23,7 +23,7 @@ public static class PlayerNameHelper
     {
         try
         {
-            var localPlayer = DalamudTataru.Plugin.ClientState?.LocalPlayer;
+            var localPlayer = DalamudTataru.Plugin.ObjectTable?.LocalPlayer;
             if (localPlayer != null && !string.IsNullOrWhiteSpace(localPlayer.Name.TextValue))
             {
                 LastKnownPlayerFullName = localPlayer.Name.TextValue.Trim();

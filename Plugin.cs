@@ -32,6 +32,7 @@ public class Plugin : IDalamudPlugin
     [PluginService] internal static IPluginLog PluginLog { get; private set; } = null!;
     [PluginService] internal static IDtrBar DtrBar { get; private set; } = null!;
     [PluginService] internal static IClientState ClientState { get; private set; } = null!;
+    [PluginService] internal static IObjectTable ObjectTable { get; private set; } = null!;
 
     public Configuration Configuration { get; init; }
     public WindowSystem WindowSystem { get; init; } = new("TataruPlugin");

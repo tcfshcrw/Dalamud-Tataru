@@ -190,7 +190,7 @@ public class GlossaryManager
         if (config?.EnableCustomGlossary == true && config.CustomGlossaryEntries != null)
         {
             var trimmed = speaker.Trim();
-            foreach (var entry in config.CustomGlossaryEntries)
+            foreach (var entry in config!.CustomGlossaryEntries)
             {
                 if (!entry.Enabled || !entry.MatchSpeaker) continue;
 
@@ -252,7 +252,7 @@ public class GlossaryManager
         // 2. Custom Glossary Post Corrections (MatchDialogue)
         if (config?.EnableCustomGlossary == true && config.CustomGlossaryEntries != null)
         {
-            foreach (var entry in config.CustomGlossaryEntries)
+            foreach (var entry in config!.CustomGlossaryEntries)
             {
                 if (!entry.Enabled || !entry.MatchDialogue) continue;
 
@@ -303,7 +303,7 @@ public class GlossaryManager
         {
             relevantRules.Add($"- {PlayerNameHelper.PlayerPlaceholder} => {PlayerNameHelper.PlayerPlaceholder} (玩家角色名稱標記，請在輸出中原樣保留，嚴禁音譯為漢字)");
         }
-        foreach (var entry in config.CustomGlossaryEntries)
+        foreach (var entry in config!.CustomGlossaryEntries)
         {
             if (!entry.Enabled) continue;
 
