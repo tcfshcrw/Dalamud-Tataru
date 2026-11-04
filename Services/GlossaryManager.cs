@@ -236,39 +236,65 @@ public class GlossaryManager
     public string ApplyPreTranslation(string text, TargetLanguage targetLang)
     {
         if (string.IsNullOrWhiteSpace(text)) return text;
-        if (config?.EnableCustomGlossary != true || config.CustomGlossaryEntries == null || config.CustomGlossaryEntries.Count == 0)
+
+        // 1. Built-in housing areas & key terms pre-replacement (safeguard against LLM phonetic katakana mistranslations)
+        if (text.Contains("ラベンダーベッド") || text.Contains("ラベンダーベッ"))
         {
-            return text;
+            text = text.Replace("ラベンダーベッド", "薰衣草苗圃").Replace("ラベンダーベッ", "薰衣草苗圃");
+        }
+        if (text.Contains("Lavender Beds", StringComparison.OrdinalIgnoreCase))
+        {
+            text = Regex.Replace(text, "(?i)Lavender Beds", "薰衣草苗圃");
+        }
+        if (text.Contains("ミスト・ヴィレッジ"))
+        {
+            text = text.Replace("ミスト・ヴィレッジ", targetLang == TargetLanguage.TraditionalChinese ? "海霧村" : "海雾村");
+        }
+        if (text.Contains("ゴブレットビュート"))
+        {
+            text = text.Replace("ゴブレットビュート", targetLang == TargetLanguage.TraditionalChinese ? "高腳孤丘" : "高脚孤丘");
+        }
+        if (text.Contains("シロガネ"))
+        {
+            text = text.Replace("シロガネ", targetLang == TargetLanguage.TraditionalChinese ? "白銀鄉" : "白银乡");
+        }
+        if (text.Contains("エンピレアム"))
+        {
+            text = text.Replace("エンピレアム", targetLang == TargetLanguage.TraditionalChinese ? "穹頂之境" : "穹顶之境");
         }
 
-        // Sort by longest term first so longer phrases match before shorter subwords
-        var activeEntries = config.CustomGlossaryEntries
-            .Where(e => e.Enabled && e.MatchDialogue)
-            .OrderByDescending(e => Math.Max(e.Japanese?.Trim().Length ?? 0, e.English?.Trim().Length ?? 0));
-
-        foreach (var entry in activeEntries)
+        // 2. Custom Glossary rules
+        if (config?.EnableCustomGlossary == true && config.CustomGlossaryEntries != null && config.CustomGlossaryEntries.Count > 0)
         {
-            var targetReplacement = targetLang == TargetLanguage.TraditionalChinese ? entry.TraditionalChinese : entry.SimplifiedChinese;
-            if (string.IsNullOrWhiteSpace(targetReplacement)) continue;
-            targetReplacement = targetReplacement.Trim();
+            // Sort by longest term first so longer phrases match before shorter subwords
+            var activeEntries = config.CustomGlossaryEntries
+                .Where(e => e.Enabled && e.MatchDialogue)
+                .OrderByDescending(e => Math.Max(e.Japanese?.Trim().Length ?? 0, e.English?.Trim().Length ?? 0));
 
-            // 1. Match Japanese phrase in source text
-            if (!string.IsNullOrWhiteSpace(entry.Japanese))
+            foreach (var entry in activeEntries)
             {
-                var jp = entry.Japanese.Trim();
-                if (text.Contains(jp))
+                var targetReplacement = targetLang == TargetLanguage.TraditionalChinese ? entry.TraditionalChinese : entry.SimplifiedChinese;
+                if (string.IsNullOrWhiteSpace(targetReplacement)) continue;
+                targetReplacement = targetReplacement.Trim();
+
+                // 1. Match Japanese phrase in source text
+                if (!string.IsNullOrWhiteSpace(entry.Japanese))
                 {
-                    text = text.Replace(jp, targetReplacement);
+                    var jp = entry.Japanese.Trim();
+                    if (text.Contains(jp))
+                    {
+                        text = text.Replace(jp, targetReplacement);
+                    }
                 }
-            }
 
-            // 2. Match English phrase in source text
-            if (!string.IsNullOrWhiteSpace(entry.English))
-            {
-                var en = entry.English.Trim();
-                if (text.Contains(en, StringComparison.OrdinalIgnoreCase))
+                // 2. Match English phrase in source text
+                if (!string.IsNullOrWhiteSpace(entry.English))
                 {
-                    text = Regex.Replace(text, $@"(?<![a-zA-Z0-9]){Regex.Escape(en)}(?![a-zA-Z0-9])", targetReplacement, RegexOptions.IgnoreCase);
+                    var en = entry.English.Trim();
+                    if (text.Contains(en, StringComparison.OrdinalIgnoreCase))
+                    {
+                        text = Regex.Replace(text, $@"(?<![a-zA-Z0-9]){Regex.Escape(en)}(?![a-zA-Z0-9])", targetReplacement, RegexOptions.IgnoreCase);
+                    }
                 }
             }
         }
@@ -422,7 +448,12 @@ public class GlossaryManager
             new() { Japanese = "シャーレアン", English = "Sharlayan", TraditionalChinese = "薩雷安", SimplifiedChinese = "萨雷安", MatchSpeaker = true, MatchDialogue = true, Notes = "知識之都" },
             new() { Japanese = "ラザハン", English = "Radz-at-Han", TraditionalChinese = "拉札罕", SimplifiedChinese = "拉札罕", MatchSpeaker = true, MatchDialogue = true, Notes = "近東城邦" },
             new() { Japanese = "天気予報士", English = "Skywatcher", TraditionalChinese = "天氣預報員", SimplifiedChinese = "天气预报员", MatchSpeaker = true, MatchDialogue = true, Notes = "功能性 NPC" },
-            new() { Japanese = "バデロン", English = "Baderon", TraditionalChinese = "巴德隆", SimplifiedChinese = "巴德隆", MatchSpeaker = true, MatchDialogue = true, Notes = "海都溺愛海豚亭老闆" }
+            new() { Japanese = "バデロン", English = "Baderon", TraditionalChinese = "巴德隆", SimplifiedChinese = "巴德隆", MatchSpeaker = true, MatchDialogue = true, Notes = "海都溺愛海豚亭老闆" },
+            new() { Japanese = "ラベンダーベッド", English = "Lavender Beds", TraditionalChinese = "薰衣草苗圃", SimplifiedChinese = "薰衣草苗圃", MatchSpeaker = true, MatchDialogue = true, Notes = "森都住宅區" },
+            new() { Japanese = "ミスト・ヴィレッジ", English = "Mist", TraditionalChinese = "海霧村", SimplifiedChinese = "海雾村", MatchSpeaker = true, MatchDialogue = true, Notes = "海都住宅區" },
+            new() { Japanese = "ゴブレットビュート", English = "The Goblet", TraditionalChinese = "高腳孤丘", SimplifiedChinese = "高脚孤丘", MatchSpeaker = true, MatchDialogue = true, Notes = "沙都住宅區" },
+            new() { Japanese = "シロガネ", English = "Shirogane", TraditionalChinese = "白銀鄉", SimplifiedChinese = "白银乡", MatchSpeaker = true, MatchDialogue = true, Notes = "東方住宅區" },
+            new() { Japanese = "エンピレアム", English = "Empyreum", TraditionalChinese = "穹頂之境", SimplifiedChinese = "穹顶之境", MatchSpeaker = true, MatchDialogue = true, Notes = "雪都住宅區" }
         };
     }
 
@@ -437,8 +468,21 @@ public class GlossaryManager
                 var entries = JsonSerializer.Deserialize<List<CustomGlossaryEntry>>(json);
                 if (entries != null && config != null)
                 {
-                    config.CustomGlossaryEntries = entries;
-                    log?.Information($"Loaded {entries.Count} custom glossary entries from {filePath}");
+                    if (config.CustomGlossaryEntries.Count > 0)
+                    {
+                        foreach (var e in entries)
+                        {
+                            if (!config.CustomGlossaryEntries.Any(c => c.Id == e.Id || (!string.IsNullOrEmpty(e.Japanese) && string.Equals(c.Japanese, e.Japanese, StringComparison.OrdinalIgnoreCase))))
+                            {
+                                config.CustomGlossaryEntries.Add(e);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        config.CustomGlossaryEntries = entries;
+                    }
+                    log?.Information($"Loaded {config.CustomGlossaryEntries.Count} custom glossary entries from {filePath}");
                 }
             }
             else if (config?.CustomGlossaryEntries != null && config.CustomGlossaryEntries.Count > 0)

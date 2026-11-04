@@ -1804,6 +1804,7 @@ public class ConfigWindow : Window
             if (ImGui.Button("確認清空", new Vector2(0, 28)))
             {
                 config.CustomGlossaryEntries?.Clear();
+                glossary.SaveCustomGlossaryToFile(config.CustomGlossaryEntries ?? new());
                 config.Save();
                 translator.ClearCache();
                 showClearAllConfirm = false;
@@ -2007,6 +2008,7 @@ public class ConfigWindow : Window
                 if (ImGui.Checkbox($"##en_{entry.Id}", ref enabled))
                 {
                     entry.Enabled = enabled;
+                    glossary.SaveCustomGlossaryToFile(config.CustomGlossaryEntries ?? new());
                     config.Save();
                     translator.ClearCache();
                 }
@@ -2113,6 +2115,7 @@ public class ConfigWindow : Window
                 var copy = toClone.Clone();
                 if (!string.IsNullOrEmpty(copy.Notes)) copy.Notes += " (副本)";
                 config.CustomGlossaryEntries?.Add(copy);
+                glossary.SaveCustomGlossaryToFile(config.CustomGlossaryEntries ?? new());
                 config.Save();
                 translator.ClearCache();
             }
@@ -2124,6 +2127,7 @@ public class ConfigWindow : Window
                 {
                     isEditingGlossary = false;
                 }
+                glossary.SaveCustomGlossaryToFile(config.CustomGlossaryEntries ?? new());
                 config.Save();
                 translator.ClearCache();
             }
@@ -2304,6 +2308,7 @@ public class ConfigWindow : Window
             }
         }
 
+        glossary.SaveCustomGlossaryToFile(config.CustomGlossaryEntries ?? new());
         config.Save();
         translator.ClearCache();
         isEditingGlossary = false;
@@ -2326,6 +2331,7 @@ public class ConfigWindow : Window
                 added++;
             }
         }
+        glossary.SaveCustomGlossaryToFile(config.CustomGlossaryEntries ?? new());
         config.Save();
         translator.ClearCache();
     }
@@ -2402,6 +2408,7 @@ public class ConfigWindow : Window
                 }
             }
 
+            glossary.SaveCustomGlossaryToFile(config.CustomGlossaryEntries ?? new());
             config.Save();
             translator.ClearCache();
             importExportStatus = $"成功匯入 {imported.Count} 筆對照！{(overwrite ? "（已覆蓋原清單）" : "（已合併至現有清單）")}";
