@@ -250,6 +250,14 @@ public class DialogueReplaceOverlayWindow : Window
                         ? "【Tataru 仿原版羊皮紙風格 (方案 A)】預覽中！\n米白象牙色底框 + 復古深褐邊框，支援滑鼠任意拉伸大小。"
                         : "【現代深色半透明模式】預覽中！";
 
+                if (config.ReplaceShowSpeaker)
+                {
+                    Vector4 spkColor = config.ReplaceUseNativeBubble
+                        ? (dialogueWatcher.IsTalkBubbleDark ? new Vector4(1.0f, 0.85f, 0.35f, 1.0f) : new Vector4(0.55f, 0.25f, 0.05f, 1.0f))
+                        : (config.ReplaceUseParchmentTheme ? new Vector4(0.45f, 0.20f, 0.05f, 1.0f) : config.SpeakerColor);
+                    ImGui.TextColored(spkColor, "【塔塔露】");
+                }
+
                 ImGui.TextColored(textColor, $"冒險者大人，{modeDesc}\n對話結束時視窗將自動即刻消失。");
 
                 if (config.ReplaceShowOriginalText)
@@ -292,7 +300,7 @@ public class DialogueReplaceOverlayWindow : Window
             }
 
             // 1. Speaker
-            if (config.ShowSpeaker)
+            if (config.ReplaceShowSpeaker)
             {
                 var speaker = !string.IsNullOrEmpty(currentEntry.TranslatedSpeaker) 
                     ? currentEntry.TranslatedSpeaker 

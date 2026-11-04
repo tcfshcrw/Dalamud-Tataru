@@ -69,6 +69,7 @@ public class Configuration : IPluginConfiguration
     public bool ReplaceUseNativeBubble { get; set; } = false;
     public bool ReplaceUseParchmentTheme { get; set; } = true;
     public bool ReplaceAutoSyncSize { get; set; } = false;
+    public bool ReplaceShowSpeaker { get; set; } = false;
     public Vector2 ReplaceOverlayPosition { get; set; } = new Vector2(400, 750);
     public Vector2 ReplaceOverlaySize { get; set; } = new Vector2(650, 180);
     public bool ReplaceFollowTalkAddonPosition { get; set; } = true;

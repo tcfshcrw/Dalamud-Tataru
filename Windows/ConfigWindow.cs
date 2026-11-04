@@ -900,13 +900,26 @@ public class ConfigWindow : Window
         ImGui.TextDisabled("調整字幕底色深淺：0.00 為全透明（純文字懸浮無黑底），1.00 為純黑完全不透明。");
         ImGui.Spacing();
 
-        var showSpeaker = config.ShowSpeaker;
-        if (ImGui.Checkbox("顯示說話者名稱 (如【巴德隆】)", ref showSpeaker))
+        if (config.ReplaceGameTalkAddon)
         {
-            config.ShowSpeaker = showSpeaker;
-            config.Save();
+            var replaceShowSpeaker = config.ReplaceShowSpeaker;
+            if (ImGui.Checkbox("在對話框 (泡泡框內) 顯示說話者中文名稱 (如【巴德隆】)", ref replaceShowSpeaker))
+            {
+                config.ReplaceShowSpeaker = replaceShowSpeaker;
+                config.Save();
+            }
+            ImGui.TextDisabled("預設關閉。決定是否在泡泡框內部內文區域顯示說話者中文名稱。關閉後可節省框內空間，還原最乾淨的遊戲原生對話排版。");
         }
-        ImGui.TextDisabled("在字幕視窗或覆蓋對話框中顯示翻譯後的說話者中文名稱。");
+        else
+        {
+            var showSpeaker = config.ShowSpeaker;
+            if (ImGui.Checkbox("顯示說話者名稱 (獨立字幕模式)", ref showSpeaker))
+            {
+                config.ShowSpeaker = showSpeaker;
+                config.Save();
+            }
+            ImGui.TextDisabled("在獨立字幕視窗中顯示翻譯後的說話者中文名稱（如【巴德隆】）。");
+        }
         ImGui.Spacing();
 
         if (!config.ReplaceGameTalkAddon)
@@ -979,6 +992,15 @@ public class ConfigWindow : Window
             }
             ImGui.Spacing();
 
+            var replaceShowSpeakerDetail = config.ReplaceShowSpeaker;
+            if (ImGui.Checkbox("在對話框 (泡泡框內) 顯示說話者中文名稱 (如【巴德隆】)##replaceSpeakerDetail", ref replaceShowSpeakerDetail))
+            {
+                config.ReplaceShowSpeaker = replaceShowSpeakerDetail;
+                config.Save();
+            }
+            ImGui.TextDisabled("預設關閉。若勾選，會在泡泡框內部內文第一行顯示【說話者姓名】；若取消勾選，則僅輸出對話內容，節省框內空間。");
+            ImGui.Spacing();
+
             ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "泡泡框風格選擇 (勾選切換)");
             ImGui.Separator();
             ImGui.Spacing();
@@ -1020,12 +1042,12 @@ public class ConfigWindow : Window
                 ImGui.TextColored(new Vector4(0.3f, 0.9f, 0.4f, 1.0f), $"[底色偵測] 當前原生泡泡底色狀態：{(dialogueWatcher.IsTalkBubbleDark ? "深色底（自動以白色顯示文字）" : "淺色米白底（自動以黑色顯示文字）")}");
 
                 var hideNativeSpeaker = config.ReplaceHideNativeSpeaker;
-                if (ImGui.Checkbox("隱藏遊戲原生日文說話者姓名框", ref hideNativeSpeaker))
+                if (ImGui.Checkbox("隱藏遊戲原生日文說話者姓名標籤 (框外上方)", ref hideNativeSpeaker))
                 {
                     config.ReplaceHideNativeSpeaker = hideNativeSpeaker;
                     config.Save();
                 }
-                ImGui.TextDisabled("勾選後，方案 B 將一併隱藏泡泡框上方原生的日文名字（如「バデロン」），改由覆蓋視窗顯示中文譯名（如「【巴德隆】」）。");
+                ImGui.TextDisabled("勾選後，方案 B 將隱藏泡泡框外上方原生的日文名字（如「バデロン」）。");
             }
 
             if (!config.ReplaceUseParchmentTheme && !config.ReplaceUseNativeBubble)
