@@ -26,6 +26,8 @@ public class ConfigWindow : Window
     private readonly DialogueWatcher dialogueWatcher;
     private readonly GlossaryManager glossary;
     private readonly GlossaryEditorWindow? glossaryEditorWindow;
+    private readonly ChatTranslationService? chatTranslationService;
+    private readonly ChatHistoryWindow? chatHistoryWindow;
     private readonly IFontHandle? fontHandle;
 
     private bool showApiKey = false;
@@ -83,7 +85,7 @@ public class ConfigWindow : Window
         "自訂模型 (Custom)"
     };
 
-    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, DialogueReplaceOverlayWindow replaceOverlayWindow, DialogueWatcher dialogueWatcher, GlossaryManager glossary, GlossaryEditorWindow? glossaryEditorWindow = null, IFontHandle? fontHandle = null)
+    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, DialogueReplaceOverlayWindow replaceOverlayWindow, DialogueWatcher dialogueWatcher, GlossaryManager glossary, GlossaryEditorWindow? glossaryEditorWindow = null, ChatTranslationService? chatTranslationService = null, ChatHistoryWindow? chatHistoryWindow = null, IFontHandle? fontHandle = null)
         : base("Tataru Native Translator 設定###TataruConfigWindow")
     {
         this.config = config;
@@ -96,6 +98,8 @@ public class ConfigWindow : Window
         this.dialogueWatcher = dialogueWatcher;
         this.glossary = glossary;
         this.glossaryEditorWindow = glossaryEditorWindow;
+        this.chatTranslationService = chatTranslationService;
+        this.chatHistoryWindow = chatHistoryWindow;
         this.fontHandle = fontHandle;
 
         Size = new Vector2(760, 680);
@@ -117,6 +121,12 @@ public class ConfigWindow : Window
                 if (ImGui.BeginTabItem("AI 翻譯設定"))
                 {
                     DrawTranslationSettings();
+                    ImGui.EndTabItem();
+                }
+
+                if (ImGui.BeginTabItem("對話與系統翻譯 (Chat)"))
+                {
+                    DrawChatSettings();
                     ImGui.EndTabItem();
                 }
 
@@ -151,6 +161,295 @@ public class ConfigWindow : Window
         {
             fontScope?.Dispose();
         }
+    }
+
+    private string chatHistoryFilter = string.Empty;
+
+    private void DrawChatSettings()
+    {
+        ImGui.Spacing();
+        var chatEnabled = config.EnableChatTranslation;
+        if (ImGui.Checkbox("啟用聊天欄與系統訊息翻譯 (Chat Translation)", ref chatEnabled))
+        {
+            config.EnableChatTranslation = chatEnabled;
+            config.Save();
+        }
+
+        if (!config.EnableChatTranslation)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(new Vector4(1.0f, 0.4f, 0.4f, 1.0f), "[目前已關閉聊天欄翻譯]");
+        }
+        else
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(new Vector4(0.4f, 1.0f, 0.5f, 1.0f), "[運行中 - 監聽已勾選頻道]");
+        }
+
+        ImGui.TextColored(new Vector4(0.7f, 0.7f, 0.7f, 1.0f),
+            "可即時翻譯遊戲左下角聊天視窗中的玩家發言、公會/部隊訊息、以及遊戲系統提示 (如換裝、進出區域、公告等)。");
+
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        if (ImGui.CollapsingHeader("輸出與過濾設定", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            var outputChat = config.ChatOutputToChatLog;
+            if (ImGui.Checkbox("將翻譯結果輸出至遊戲聊天視窗 (Chat Log)", ref outputChat))
+            {
+                config.ChatOutputToChatLog = outputChat;
+                config.Save();
+            }
+
+            if (config.ChatOutputToChatLog)
+            {
+                ImGui.Indent(20f);
+
+                var hideOriginal = config.ChatHideOriginal;
+                if (ImGui.Checkbox("僅輸出翻譯內容 (隱藏原文，未勾選時顯示：原文 [譯] 譯文)", ref hideOriginal))
+                {
+                    config.ChatHideOriginal = hideOriginal;
+                    config.Save();
+                }
+
+                var useEcho = config.ChatUseEchoChannel;
+                if (ImGui.Checkbox("使用 Echo 頻道輸出 (避免混入原頻道聊天分頁)", ref useEcho))
+                {
+                    config.ChatUseEchoChannel = useEcho;
+                    config.Save();
+                }
+
+                var coloredPrefix = config.ChatShowColoredPrefix;
+                if (ImGui.Checkbox("彩色高亮譯文前綴標籤", ref coloredPrefix))
+                {
+                    config.ChatShowColoredPrefix = coloredPrefix;
+                    config.Save();
+                }
+
+                var prefix = config.ChatPrefix;
+                ImGui.SetNextItemWidth(120 * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
+                if (ImGui.InputText("譯文前綴標籤 (Prefix)", ref prefix, 20))
+                {
+                    config.ChatPrefix = prefix;
+                    config.Save();
+                }
+
+                ImGui.Unindent(20f);
+            }
+
+            ImGui.Spacing();
+            var inDuty = config.ChatEnabledInDuty;
+            if (ImGui.Checkbox("在副本中 (Duty) 啟用聊天翻譯", ref inDuty))
+            {
+                config.ChatEnabledInDuty = inDuty;
+                config.Save();
+            }
+
+            var ignoreSelf = config.ChatIgnoreOwnMessages;
+            if (ImGui.Checkbox("忽略自己發出的訊息 (不重複翻譯自己發送的話)", ref ignoreSelf))
+            {
+                config.ChatIgnoreOwnMessages = ignoreSelf;
+                config.Save();
+            }
+
+            var filterMacros = config.ChatFilterMacros;
+            if (ImGui.Checkbox("過濾技能巨集連發與音效 (<se.1>~<se.16>)", ref filterMacros))
+            {
+                config.ChatFilterMacros = filterMacros;
+                config.Save();
+            }
+
+            var filterLinks = config.ChatFilterLinks;
+            if (ImGui.Checkbox("過濾純網址連結 (不翻譯純 URL)", ref filterLinks))
+            {
+                config.ChatFilterLinks = filterLinks;
+                config.Save();
+            }
+
+            ImGui.Spacing();
+            if (chatHistoryWindow != null)
+            {
+                if (ImGui.Button(chatHistoryWindow.IsOpen ? "關閉獨立聊天翻譯懸浮窗" : "開啟獨立聊天翻譯懸浮窗 (/tataru chat)"))
+                {
+                    chatHistoryWindow.IsOpen = !chatHistoryWindow.IsOpen;
+                }
+                ImGui.SameLine();
+                ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1.0f), "可於獨立視窗中即時查看翻譯歷史與 CJK 字型高解析排版。");
+            }
+        }
+
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        if (ImGui.CollapsingHeader("翻譯頻道選取 (請勾選欲翻譯的訊息種類)", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            ImGui.TextUnformatted("快速批次切換：");
+            ImGui.SameLine();
+            if (ImGui.Button("推薦預設常用"))
+            {
+                config.SelectedChatTypes.Clear();
+                config.SelectedChatTypes.AddRange(ChatChannelHelper.DefaultSelectedTypes);
+                config.Save();
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("全選所有頻道"))
+            {
+                var all = ChatChannelHelper.SocialChatTypes
+                    .Concat(ChatChannelHelper.LinkshellChatTypes)
+                    .Concat(ChatChannelHelper.CrossWorldLinkshellChatTypes)
+                    .Concat(ChatChannelHelper.SystemChatTypes)
+                    .Distinct();
+                config.SelectedChatTypes.Clear();
+                config.SelectedChatTypes.AddRange(all);
+                config.Save();
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("全部取消勾選"))
+            {
+                config.SelectedChatTypes.Clear();
+                config.Save();
+            }
+
+            ImGui.Spacing();
+
+            if (ImGui.BeginTabBar("##ChatChannelSubTabs"))
+            {
+                if (ImGui.BeginTabItem("常用社交/玩家頻道"))
+                {
+                    DrawChatChannelGrid(ChatChannelHelper.SocialChatTypes);
+                    ImGui.EndTabItem();
+                }
+
+                if (ImGui.BeginTabItem("通訊貝 (LS)"))
+                {
+                    DrawChatChannelGrid(ChatChannelHelper.LinkshellChatTypes);
+                    ImGui.EndTabItem();
+                }
+
+                if (ImGui.BeginTabItem("跨服通訊貝 (CWLS)"))
+                {
+                    DrawChatChannelGrid(ChatChannelHelper.CrossWorldLinkshellChatTypes);
+                    ImGui.EndTabItem();
+                }
+
+                if (ImGui.BeginTabItem("系統與通知訊息"))
+                {
+                    DrawChatChannelGrid(ChatChannelHelper.SystemChatTypes);
+                    ImGui.EndTabItem();
+                }
+
+                ImGui.EndTabBar();
+            }
+        }
+
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        if (ImGui.CollapsingHeader("即時翻譯紀錄預覽 (Recent Translations)"))
+        {
+            DrawChatHistoryPreview();
+        }
+    }
+
+    private void DrawChatChannelGrid(List<Dalamud.Game.Text.XivChatType> channels)
+    {
+        ImGui.Spacing();
+        int rows = (int)Math.Ceiling(channels.Count / 2.0);
+        ImGui.Columns(2, "##ChannelGridColumns", false);
+
+        for (int i = 0; i < channels.Count; i++)
+        {
+            if (i == rows) ImGui.NextColumn();
+
+            var type = channels[i];
+            var isSelected = config.SelectedChatTypes.Contains(type);
+            var displayName = ChatChannelHelper.GetDisplayName(type);
+            var color = ChatChannelHelper.GetChannelColor(type);
+
+            ImGui.PushStyleColor(ImGuiCol.Text, color);
+            if (ImGui.Checkbox(displayName + $"##chk_{type}", ref isSelected))
+            {
+                if (isSelected && !config.SelectedChatTypes.Contains(type))
+                {
+                    config.SelectedChatTypes.Add(type);
+                }
+                else if (!isSelected)
+                {
+                    config.SelectedChatTypes.RemoveAll(t => t == type);
+                }
+                config.Save();
+            }
+            ImGui.PopStyleColor();
+        }
+
+        ImGui.Columns(1);
+        ImGui.Spacing();
+    }
+
+    private void DrawChatHistoryPreview()
+    {
+        if (chatTranslationService == null)
+        {
+            ImGui.TextDisabled("聊天服務尚未就緒。");
+            return;
+        }
+
+        var history = chatTranslationService.GetHistory();
+        ImGui.SetNextItemWidth(200 * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
+        ImGui.InputTextWithHint("##cfgChatFilter", "篩選歷史訊息...", ref chatHistoryFilter, 100);
+        ImGui.SameLine();
+        if (ImGui.Button("清空紀錄##cfgClear"))
+        {
+            chatTranslationService.ClearHistory();
+        }
+
+        ImGui.Spacing();
+
+        if (history.Count == 0)
+        {
+            ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1.0f), "目前尚無翻譯紀錄。當收到勾選頻道的對話或系統訊息時，將自動在此顯示。");
+            return;
+        }
+
+        var filter = chatHistoryFilter.Trim();
+        var items = string.IsNullOrEmpty(filter)
+            ? history
+            : history.Where(e =>
+                e.Sender.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+                e.OriginalText.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+                e.TranslatedText.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        if (ImGui.BeginChild("##cfgChatHistoryChild", new Vector2(-1, 200 * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale), true, ImGuiWindowFlags.HorizontalScrollbar))
+        {
+            foreach (var item in items)
+            {
+                var timeStr = item.Timestamp.ToString("HH:mm:ss");
+                var badgeName = ChatChannelHelper.GetDisplayName(item.ChatType);
+                var badgeColor = ChatChannelHelper.GetChannelColor(item.ChatType);
+
+                ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1.0f), $"[{timeStr}]");
+                ImGui.SameLine();
+                ImGui.TextColored(badgeColor, $"[{badgeName}]");
+                ImGui.SameLine();
+
+                if (!string.IsNullOrEmpty(item.Sender))
+                {
+                    ImGui.TextColored(new Vector4(1.0f, 0.85f, 0.4f, 1.0f), $"{item.Sender}:");
+                    ImGui.SameLine();
+                }
+
+                ImGui.TextUnformatted(item.TranslatedText);
+
+                if (!config.ChatHideOriginal && !string.IsNullOrEmpty(item.OriginalText) &&
+                    !item.OriginalText.Equals(item.TranslatedText, StringComparison.OrdinalIgnoreCase))
+                {
+                    ImGui.Indent(20f);
+                    ImGui.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 0.85f), $"↳ 原文: {item.OriginalText}");
+                    ImGui.Unindent(20f);
+                }
+            }
+        }
+        ImGui.EndChild();
     }
 
     private void DrawTranslationSettings()

@@ -58,6 +58,24 @@ public class Configuration : IPluginConfiguration
         set => customGlossaryEntries = value ?? new();
     }
 
+    // Chat & System Translation
+    public bool EnableChatTranslation { get; set; } = false;
+    public bool ChatOutputToChatLog { get; set; } = true;
+    public bool ChatHideOriginal { get; set; } = false;
+    public bool ChatUseEchoChannel { get; set; } = false;
+    public bool ChatShowColoredPrefix { get; set; } = true;
+    public string ChatPrefix { get; set; } = "[Tataru]";
+    public bool ChatIgnoreOwnMessages { get; set; } = true;
+    public bool ChatEnabledInDuty { get; set; } = true;
+    public bool ChatFilterMacros { get; set; } = true;
+    public bool ChatFilterLinks { get; set; } = true;
+    private List<Dalamud.Game.Text.XivChatType>? selectedChatTypes;
+    public List<Dalamud.Game.Text.XivChatType> SelectedChatTypes
+    {
+        get => selectedChatTypes ??= new List<Dalamud.Game.Text.XivChatType>(ChatChannelHelper.DefaultSelectedTypes);
+        set => selectedChatTypes = value ?? new List<Dalamud.Game.Text.XivChatType>(ChatChannelHelper.DefaultSelectedTypes);
+    }
+
     // Hook Toggles
     public bool TranslateTalk { get; set; } = true;
     public bool TranslateBattleTalk { get; set; } = true;

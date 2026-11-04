@@ -33,6 +33,7 @@ public class Plugin : IDalamudPlugin
     [PluginService] internal static IDtrBar DtrBar { get; private set; } = null!;
     [PluginService] internal static IClientState ClientState { get; private set; } = null!;
     [PluginService] internal static IObjectTable ObjectTable { get; private set; } = null!;
+    [PluginService] internal static ICondition Condition { get; private set; } = null!;
 
     public Configuration Configuration { get; init; }
     public WindowSystem WindowSystem { get; init; } = new("TataruPlugin");
@@ -43,10 +44,12 @@ public class Plugin : IDalamudPlugin
     private readonly GoogleTranslator googleTranslator;
     private readonly LmStudioTranslator lmStudioTranslator;
     private readonly GeminiTranslator translator;
+    private readonly ChatTranslationService chatTranslationService;
     private readonly DialogueWatcher dialogueWatcher;
     private readonly SubtitleOverlayWindow overlayWindow;
     private readonly DialogueReplaceOverlayWindow replaceOverlayWindow;
     private readonly GlossaryEditorWindow glossaryEditorWindow;
+    private readonly ChatHistoryWindow chatHistoryWindow;
     private readonly ConfigWindow configWindow;
     private readonly IDtrBarEntry? dtrEntry;
 
@@ -99,15 +102,18 @@ public class Plugin : IDalamudPlugin
         dialogueWatcher.OnDialogueChanged += HandleDialogueChanged;
         dialogueWatcher.OnDialogueClosed += HandleDialogueClosed;
 
+        chatTranslationService = new ChatTranslationService(Configuration, translator, ChatGui, ClientState, Condition, PluginLog);
         overlayWindow = new SubtitleOverlayWindow(Configuration, CjkFontHandle);
         replaceOverlayWindow = new DialogueReplaceOverlayWindow(Configuration, dialogueWatcher, CjkFontHandle);
         glossaryEditorWindow = new GlossaryEditorWindow(Configuration, glossaryManager, CjkFontHandle);
-        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, replaceOverlayWindow, dialogueWatcher, glossaryManager, glossaryEditorWindow, CjkFontHandle);
+        chatHistoryWindow = new ChatHistoryWindow(Configuration, chatTranslationService, CjkFontHandle);
+        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, replaceOverlayWindow, dialogueWatcher, glossaryManager, glossaryEditorWindow, chatTranslationService, chatHistoryWindow, CjkFontHandle);
 
         WindowSystem.AddWindow(overlayWindow);
         WindowSystem.AddWindow(replaceOverlayWindow);
         WindowSystem.AddWindow(configWindow);
         WindowSystem.AddWindow(glossaryEditorWindow);
+        WindowSystem.AddWindow(chatHistoryWindow);
 
         var version = GetType().Assembly.GetName().Version;
         string versionStr = version != null ? $"v{version}" : "v1.0.0";
@@ -315,6 +321,10 @@ public class Plugin : IDalamudPlugin
 
             case "glossary" or "dict" or "custom":
                 glossaryEditorWindow.IsOpen = !glossaryEditorWindow.IsOpen;
+                break;
+
+            case "chat":
+                chatHistoryWindow.IsOpen = !chatHistoryWindow.IsOpen;
                 break;
 
             case "config" or "settings" or "setting":
@@ -570,6 +580,7 @@ public class Plugin : IDalamudPlugin
         dialogueWatcher.OnDialogueChanged -= HandleDialogueChanged;
         dialogueWatcher.OnDialogueClosed -= HandleDialogueClosed;
         dialogueWatcher.Dispose();
+        chatTranslationService.Dispose();
 
         translator.Dispose();
         lmStudioTranslator.Dispose();

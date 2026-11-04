@@ -74,14 +74,18 @@ Dalumud-Tataru/
 │   └── after-translation-chs.json  # 簡體中文譯後名詞校正表
 ├── Models/
 │   ├── DialogueEntry.cs            # 對話資料模型與語言設定定義
-│   └── CustomGlossaryEntry.cs      # 自訂多語名詞對照表資料結構
+│   ├── CustomGlossaryEntry.cs      # 自訂多語名詞對照表資料結構
+│   ├── ChatChannelHelper.cs        # 聊天頻道與系統訊息分類/色彩對照定義
+│   └── ChatHistoryEntry.cs         # 聊天翻譯歷史資料結構
 ├── Services/
 │   ├── DialogueWatcher.cs          # 遊戲原生對話/字幕視窗監聽器
+│   ├── ChatTranslationService.cs   # 對話欄與系統訊息即時監聽、非同步翻譯與輸出服務
 │   ├── GeminiTranslator.cs         # Google Gemini REST API 非同步翻譯與快取服務
 │   ├── LmStudioTranslator.cs       # LM Studio 本地大模型翻譯服務
 │   └── GlossaryManager.cs          # 專有名詞讀取、自訂對照表持久化與文本校正服務
 ├── Windows/
-│   ├── ConfigWindow.cs             # 插件設定介面 (API Key、模型選擇、外觀調整)
+│   ├── ConfigWindow.cs             # 插件設定介面 (AI、聊天頻道、自訂對照表、提示詞、外觀)
+│   ├── ChatHistoryWindow.cs        # 獨立聊天與系統翻譯歷史紀錄懸浮視窗
 │   ├── GlossaryEditorWindow.cs     # 獨立自訂名詞對照表編輯器視窗 (支援手動儲存與測試)
 │   ├── SubtitleOverlayWindow.cs    # ImGui 原生字幕懸浮視窗
 │   └── DialogueReplaceOverlayWindow.cs # 原生對話框覆蓋視窗 (羊皮紙/原生泡泡模式)
@@ -129,6 +133,7 @@ Dalumud-Tataru/
 | `/tataru on` / `/tataru off` | **開啟 / 關閉對話翻譯功能**（狀態將永久保存，下次啟動自動套用） |
 | `/tataru status` | 查看當前翻譯開關、主翻譯引擎與視窗模式狀態 |
 | `/tataru` 或 `/tataru config` | 開啟 / 關閉主設定視窗 |
+| `/tataru chat` | 開啟 / 關閉**獨立對話與系統翻譯紀錄懸浮窗** |
 | `/tataru glossary` 或 `/tataru dict` | 開啟 / 關閉**獨立自訂名詞對照表編輯器視窗** |
 | `/tataru toggle` | 開啟 / 關閉字幕視窗（可用於手動調整視窗位置） |
 | `/tataru replace` | 開關原生對話框覆蓋模式（直接在原生對話框覆蓋中文譯文，支援 `on`/`off`） |
