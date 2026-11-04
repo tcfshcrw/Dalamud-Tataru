@@ -204,6 +204,10 @@ public partial class ChatTranslationService : IDisposable
         var outputType = config.ChatUseEchoChannel ? XivChatType.Echo : chatType;
         var prefix = string.IsNullOrWhiteSpace(config.ChatPrefix) ? "[Tataru]" : config.ChatPrefix.Trim();
 
+        string outOriginal = config.ChatEnableGlyphFolding ? GlyphFolder.Fold(originalText) : originalText;
+        string outTranslated = config.ChatEnableGlyphFolding ? GlyphFolder.Fold(translatedText) : translatedText;
+        string outSender = config.ChatEnableGlyphFolding ? GlyphFolder.Fold(sender) : sender;
+
         var sb = new SeStringBuilder();
         if (config.ChatShowColoredPrefix)
         {
@@ -217,11 +221,11 @@ public partial class ChatTranslationService : IDisposable
 
         if (config.ChatHideOriginal)
         {
-            sb.Append(translatedText);
+            sb.Append(outTranslated);
         }
         else
         {
-            sb.Append(originalText);
+            sb.Append(outOriginal);
             if (config.ChatShowColoredPrefix)
             {
                 sb.AddUiForeground("  [譯] ", 60);
@@ -230,7 +234,7 @@ public partial class ChatTranslationService : IDisposable
             {
                 sb.Append("  [譯] ");
             }
-            sb.Append(translatedText);
+            sb.Append(outTranslated);
         }
 
         var messagePayload = sb.Build();
@@ -243,14 +247,14 @@ public partial class ChatTranslationService : IDisposable
             if (config.ChatUseEchoChannel && !string.IsNullOrEmpty(sender))
             {
                 var echoSb = new SeStringBuilder();
-                echoSb.Append($"[{sender}] ").Append(messagePayload);
+                echoSb.Append($"[{outSender}] ").Append(messagePayload);
                 messagePayload = echoSb.Build();
                 RecordPluginOutput(messagePayload.TextValue);
             }
         }
         else
         {
-            namePayload = new SeString(new PlayerPayload($"{prefix} {sender}", 0));
+            namePayload = new SeString(new PlayerPayload($"{prefix} {outSender}", 0));
             RecordPluginOutput(namePayload.TextValue);
         }
 

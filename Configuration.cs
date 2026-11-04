@@ -69,6 +69,7 @@ public class Configuration : IPluginConfiguration
     public bool ChatEnabledInDuty { get; set; } = true;
     public bool ChatFilterMacros { get; set; } = true;
     public bool ChatFilterLinks { get; set; } = true;
+    public bool ChatEnableGlyphFolding { get; set; } = true;
     private List<Dalamud.Game.Text.XivChatType>? selectedChatTypes;
     public List<Dalamud.Game.Text.XivChatType> SelectedChatTypes
     {

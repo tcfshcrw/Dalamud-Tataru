@@ -1,0 +1,88 @@
+using System;
+
+namespace DalamudTataru.Services;
+
+public static partial class GlyphFolder
+{
+    // ---- European: 85 entries ------------------------------------------------
+    private const string EuropeanKeys =
+        "ĐđĦħİıĸĿŀŁłŊŋŦŧſƀƁƂƃƇƈƊƋƌƑƒƓƗƘƙƚƝƞƟƤƥƫƬƭƮƲƳƴƵƶǤǥ" +
+        "ȠȡȤȥȴȵȶȺȻȼȽȾȿɀɃɆɇɈɉɋɌɍɎɏςЄЅІЇЈєѕіїјҐґ";
+
+    private const string EuropeanValues =
+        "DdHhIikLlLlNnTtsbBBbCcDDdFfGIKklNnOPptTtTVYyZzGg" +
+        "NdZzlntACcLTszBEeJjqRrYyσЕSIÏJеsiïjГг";
+
+    // ---- HanCommon: 15 entries -----------------------------------------------
+    private const string HanCommonKeys =
+        "值增姊巢德揭晚查步每污涉渴瘦黑";
+
+    private const string HanCommonValues =
+        "値増姉巣徳掲晩査歩毎汚渉渇痩黒";
+
+    // ---- HanSimplified: 693 entries ------------------------------------------
+    private const string HanSimplifiedKeys =
+        "专业丛东丝两严丧丰临为丽举么义乌乐乔习乡书买亏亚产亩亲亿仅仑仓仪们仿众优伙伞伟传伤伦伪侦侧侨俩债" +
+        "倾偿储兑兰关兴兹养兽冈军农冯冻净减凑凤凯击划刘则刚创别剂剑剧劝务动劲劳势勋华协单卖卢卧卫厅历压厌" +
+        "厢县发变叠叹吓吕吨启吴员响哑哗唤啸喷团园围图圆圣场块坚坛坟坠垄垒墙壳处备复头夹夺奋奖妇妈娇婴孙宁" +
+        "实宠审宪宫宽宾对寻导尔尘尝层岁岂岗岛岭巩币帅师帐帘带庆库应庙废开异张弹强归录彻忆忧怀态总恳恶恼悬" +
+        "惊惩惯愤懒戏战户扑执扩扫扬扰抚抢护报拟拥拨择挤挥损换搁摄摆摇摊敌斋斩时显晓晕暂术杀杂权杨极构枪柜" +
+        "标栏树样桥检欢歼毁毕汇汉汤沟泼泽洁测济浑浓涂润涨渐渔溃滚满滥滨滩灭灵灾炼烂烦烧热焰爱爷牵牺狮狱猎" +
+        "玛环现琼电畅疗疯皱盐监盘瞒矿码砖础硕确祸离种积稳穷窑窜窝竞笔笼筹签简篮类紧纠红纤约级纪纯纱纲纳纵" +
+        "纷纸纹纺纽线练组细织终绍经结绕绘给络绝统绢绣继绩绪续绳维绵综绿缓编缘缝缠缩罗罚罢耸职联聪肃肠肤肾" +
+        "肿胀胁胜胶脏脑脸腊腾舆舰舱艰艳艺节苍苏荡荣药莲获营萧萨蓝虏虑虽衔补袭见观规视览觉计订认讨让训议讯" +
+        "记讲讶许论讼讽设访证评识诈诉诊词译试诗诚话诞询该详语误诱说请诸诺读课谁调谅谈谊谋谍谐谓谜谢谦谨谬" +
+        "谭谱贝贞负贡财责贤败货质贩贪贫购贯贴贵贷贸费贺贼贾资赋赌赏赐赔赖赚赛赞赠赢赵趋跃车轨轩转轮软轰轴" +
+        "轻载轿较辅辆辈辉辐辑输辖辩边辽达迁过迈运还这进远违连迟适选逊递逻遗邮邻郑释鉴针钉钓钟钢钥钦钩钱钻" +
+        "铁铃铜铭银铺链销锁锅锋锐错锡锦键镇镜长门闪闭问闯闲间闷闹闻阁阅阎阐阔队阳阴阵阶际陆陈陕险隐难雾霉" +
+        "韦韩页顶项顺须顽顾顿颁颂预领颇颈频颗题颜额颠颤风飘飞饥饭饮饰饱饲饶饼饿馆马驰驱驳驶驻驾骂骄验骑骗" +
+        "骚骤鱼鲁鲍鲜鸟鸡鸣鸦鸭鸿鹅鹏鹰麽齐齿龄龙龟";
+
+    private const string HanSimplifiedValues =
+        "專業叢東絲兩嚴喪豐臨爲麗舉麼義烏樂喬習郷書買虧亞産畝親億僅侖倉儀們彷衆優夥傘偉傳傷倫僞偵側僑倆債" +
+        "傾償儲兌蘭關興茲養獸岡軍農馮凍淨減湊鳳凱撃劃劉則剛創別劑劍劇勸務動勁勞勢勳華協單賣盧臥衛廳歴壓厭" +
+        "廂縣發變疊嘆嚇呂噸啓呉員響啞譁喚嘯噴團園圍圖圓聖場塊堅壇墳墜壟壘牆殼處備復頭夾奪奮獎婦媽嬌嬰孫寧" +
+        "實寵審憲宮寛賓對尋導爾塵嘗層歳豈崗島嶺鞏幣帥師帳簾帶慶庫應廟廢開異張彈強歸録徹憶憂懷態總懇惡惱懸" +
+        "驚懲慣憤懶戲戰戸撲執擴掃揚擾撫搶護報擬擁撥擇擠揮損換擱攝擺搖攤敵齋斬時顯曉暈暫術殺雜權楊極構槍櫃" +
+        "標欄樹樣橋檢歡殲毀畢匯漢湯溝溌澤潔測濟渾濃塗潤漲漸漁潰滾滿濫濱灘滅靈災煉爛煩燒熱焔愛爺牽犧獅獄獵" +
+        "瑪環現瓊電暢療瘋皺鹽監盤瞞礦碼磚礎碩確禍離種積穩窮窯竄窩競筆籠籌籤簡籃類緊糾紅纖約級紀純紗綱納縱" +
+        "紛紙紋紡紐線練組細織終紹經結繞繪給絡絶統絹繍繼績緒續繩維綿綜緑緩編縁縫纏縮羅罰罷聳職聯聰肅腸膚腎" +
+        "腫脹脅勝膠臟腦臉臘騰輿艦艙艱艷藝節蒼蘇蕩榮藥蓮獲營蕭薩藍虜慮雖銜補襲見觀規視覽覺計訂認討讓訓議訊" +
+        "記講訝許論訟諷設訪證評識詐訴診詞譯試詩誠話誕詢該詳語誤誘説請諸諾讀課誰調諒談誼謀諜諧謂謎謝謙謹謬" +
+        "譚譜貝貞負貢財責賢敗貨質販貪貧購貫貼貴貸貿費賀賊賈資賦賭賞賜賠頼賺賽贊贈贏趙趨躍車軌軒轉輪軟轟軸" +
+        "輕載轎較輔輛輩輝輻輯輸轄辯邊遼達遷過邁運還這進遠違連遲適選遜遞邏遺郵鄰鄭釋鑑針釘釣鍾鋼鑰欽鉤錢鑽" +
+        "鐵鈴銅銘銀鋪鏈銷鎖鍋鋒鋭錯錫錦鍵鎮鏡長門閃閉問闖閑間悶鬧聞閣閲閻闡闊隊陽陰陣階際陸陳陝險隱難霧黴" +
+        "韋韓頁頂項順須頑顧頓頒頌預領頗頸頻顆題顏額顛顫風飄飛飢飯飲飾飽飼饒餅餓館馬馳驅駁駛駐駕罵驕驗騎騙" +
+        "騷驟魚魯鮑鮮鳥鶏鳴鴉鴨鴻鵝鵬鷹麼齊齒齡龍龜";
+
+    // ---- HanTraditional: 45 entries ------------------------------------------
+    private const string HanTraditionalKeys =
+        "俠俱內剎卽吳寬徵悅戶擊曆橫歲歷淚溫溼潑狀產禱稅絕綠緣繡繫脫腳萊蔣虛說貓賴鄉銳錄鍊閱雞麴麵黃";
+
+    private const string HanTraditionalValues =
+        "侠倶内刹即呉寛徴悦戸撃暦横歳歴涙温湿溌状産祷税絶緑縁繍繋脱脚莱蒋虚説猫頼郷鋭録錬閲鶏麹麺黄";
+
+    // ---- CustomHan: 9 entries (includes '卡' -> 'カ') -------------------------
+    private const string CustomHanKeys = "\u5361\u56C9\u59B3\u70BA\u81FA\u8457\u88E1\u9AD4\u9EDE";
+    private const string CustomHanValues = "\u30AB\u7F85\u4F60\u7232\u53F0\u7740\u88CF\u4F53\u70B9";
+
+    private static bool TryLookalike(char c, out char replacement) =>
+        Lookup(CustomHanKeys, CustomHanValues, c, out replacement)
+        || Lookup(EuropeanKeys, EuropeanValues, c, out replacement)
+        || Lookup(HanCommonKeys, HanCommonValues, c, out replacement)
+        || Lookup(HanSimplifiedKeys, HanSimplifiedValues, c, out replacement)
+        || Lookup(HanTraditionalKeys, HanTraditionalValues, c, out replacement);
+
+    private static bool Lookup(string keys, string values, char c, out char replacement)
+    {
+        var i = keys.AsSpan().BinarySearch(c);
+        if (i < 0)
+        {
+            replacement = default;
+            return false;
+        }
+
+        replacement = values[i];
+        return true;
+    }
+}

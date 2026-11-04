@@ -226,6 +226,17 @@ public class ConfigWindow : Window
                     config.Save();
                 }
 
+                var glyphFolding = config.ChatEnableGlyphFolding;
+                if (ImGui.Checkbox("啟用防缺字字形替換 (Glyph Folding) [推薦開啟]", ref glyphFolding))
+                {
+                    config.ChatEnableGlyphFolding = glyphFolding;
+                    config.Save();
+                }
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.SetTooltip("自動檢查原生 AXIS 字型缺失字元並替換為視覺相近字 (例如將「卡」轉為「カ」，避免遊戲聊天框顯示為「＝」等號)。\n若您有安裝 FontReplace / XivAlexander 等完整中文字型替換工具，可取消此選項以輸出純漢字。");
+                }
+
                 var prefix = config.ChatPrefix;
                 ImGui.SetNextItemWidth(120 * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
                 if (ImGui.InputText("譯文前綴標籤 (Prefix)", ref prefix, 20))

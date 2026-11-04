@@ -34,6 +34,7 @@ public class Plugin : IDalamudPlugin
     [PluginService] internal static IClientState ClientState { get; private set; } = null!;
     [PluginService] internal static IObjectTable ObjectTable { get; private set; } = null!;
     [PluginService] internal static ICondition Condition { get; private set; } = null!;
+    [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
 
     public Configuration Configuration { get; init; }
     public WindowSystem WindowSystem { get; init; } = new("TataruPlugin");
@@ -102,6 +103,7 @@ public class Plugin : IDalamudPlugin
         dialogueWatcher.OnDialogueChanged += HandleDialogueChanged;
         dialogueWatcher.OnDialogueClosed += HandleDialogueClosed;
 
+        GlyphFolder.Initialize(DataManager, PluginLog);
         chatTranslationService = new ChatTranslationService(Configuration, translator, ChatGui, ClientState, Condition, PluginLog);
         overlayWindow = new SubtitleOverlayWindow(Configuration, CjkFontHandle);
         replaceOverlayWindow = new DialogueReplaceOverlayWindow(Configuration, dialogueWatcher, CjkFontHandle);
