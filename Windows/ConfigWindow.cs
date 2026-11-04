@@ -69,20 +69,7 @@ public class ConfigWindow : Window
     private string testMatchedRules = string.Empty;
     private bool showClearAllConfirm = false;
 
-    private static readonly string[] PromptPresetTemplates = new[]
-    {
-        // 0: Tataru Native Style
-        "You are an expert game localizer for Final Fantasy XIV (FFXIV). Translate the {sourceLang} dialogue into natural, immersive {targetLang}. Match character tone, personality, and honorifics. Return a JSON object with keys 'name' and 'text'.",
-
-        // 1: Echoglossian Style
-        "You are a professional game translator for Final Fantasy XIV. Translate the following {sourceLanguage} dialogue into {targetLanguage}. Preserve character persona, fantasy RPG tone, and nuances without adding conversational filler. Return a JSON object with keys 'name' and 'text'.",
-
-        // 2: EN -> ZH Fantasy Localization
-        "你是一位精通《Final Fantasy XIV》（最終幻想14）的資深在地化專家。請將遊戲中的英文對話翻譯成自然、雅緻、符合奇幻小說體裁的{targetLang}。\n翻譯原則：\n1. 針對古典/早期近代英語（如 Urianger 之 thou/thee/thine/doth 與文言倒裝句）轉譯為典雅古風漢語。\n2. 針對各地區方言與俚語（如利姆薩·羅敏薩海盜黑話、妖精族Pixie語調）轉譯為鮮活道地的語氣。\n3. 嚴格分離說話者與台詞，保留角色口吻與性格。\n4. 輸出符合 JSON 格式的物件，包含 'name'（中文名）與 'text'（中文台詞）。",
-
-        // 3: Sakura / Light Novel Style
-        "你是一位精通 ACG 與日系奇幻輕小說翻譯的資深在地化專家。請將《Final Fantasy XIV》的{sourceLang}遊戲台詞翻譯成文風生動流暢、充滿沉浸感的{targetLang}。請忠實還原角色的性格特徵（如傲嬌、元氣、沉穩或霸道），不可擅自省略感嘆詞或語氣助詞。請輸出標準 JSON 物件，包含 'name' 與 'text'。"
-    };
+    private static string[] PromptPresetTemplates => PromptPresets.Templates;
 
     private string[] models = new[]
     {
@@ -352,7 +339,7 @@ public class ConfigWindow : Window
                 config.LmStudioEndpoint = endpoint.Trim();
                 config.Save();
             }
-            ImGui.TextDisabled("預設為 http://localhost:1234。若 LM Studio 在本機執行，保持預設即可。");
+            ImGui.TextDisabled("預設為 http://192.168.1.101:1234。支援本機或區域網路 IP（如 http://192.168.1.101:1234 或 localhost）。");
             ImGui.Spacing();
 
             ImGui.Text("模型識別名稱 (Model ID)：");
@@ -609,7 +596,10 @@ public class ConfigWindow : Window
     {
         if (!promptEditorLoaded)
         {
-            promptEditorBuffer = config.CustomSystemPrompt ?? string.Empty;
+            selectedPromptPreset = config.DefaultPromptPreset;
+            promptEditorBuffer = !string.IsNullOrWhiteSpace(config.CustomSystemPrompt)
+                ? config.CustomSystemPrompt
+                : PromptPresets.GetDefaultTemplate(config.DefaultPromptPreset);
             promptEditorLoaded = true;
         }
 
@@ -626,7 +616,10 @@ public class ConfigWindow : Window
         }
         else
         {
-            ImGui.TextColored(new Vector4(0.7f, 0.7f, 0.7f, 1.0f), "[預設] 目前狀態：使用 Tataru 官方預設提示詞 (Default)");
+            string defaultName = (config.DefaultPromptPreset >= 0 && config.DefaultPromptPreset < PromptPresets.BaseLabels.Length)
+                ? PromptPresets.BaseLabels[config.DefaultPromptPreset]
+                : "Tataru 原生精準風格";
+            ImGui.TextColored(new Vector4(0.7f, 0.7f, 0.7f, 1.0f), $"[預設] 目前狀態：使用預設範本【{defaultName}】(Default)");
         }
         ImGui.TextDisabled("提示詞用於指導 Gemini 或本地 LM Studio 模型如何理解遊戲語境、角色性格與輸出格式。");
         ImGui.Spacing();
@@ -657,23 +650,38 @@ public class ConfigWindow : Window
 
         // 2. Preset Selector
         ImGui.Text("快速範本選擇 (Presets)：");
-        string[] presetLabels = new[]
-        {
-            "Tataru Assistant 原生風格 (結構化 JSON、角色語氣保真 - 推薦)",
-            "Echoglossian 國際風格 (通用變數、RPG氛圍、簡約指令)",
-            "英翻中古風小說風格 (專攻國際服古英語/Urianger/海盜黑話)",
-            "Sakura / 輕小說生動風格 (二次元沉浸語氣、細膩情感)"
-        };
+        string[] presetLabels = PromptPresets.GetDisplayLabels(config.DefaultPromptPreset);
 
-        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - 140 - 8);
-        ImGui.Combo("##PromptPresetCombo", ref selectedPromptPreset, presetLabels, presetLabels.Length);
-        ImGui.SameLine();
-        if (ImGui.Button("載入範本", new Vector2(140, 0)))
+        float btnW = 110f;
+        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - (btnW * 2) - 16);
+        if (ImGui.Combo("##PromptPresetCombo", ref selectedPromptPreset, presetLabels, presetLabels.Length))
         {
-            if (selectedPromptPreset >= 0 && selectedPromptPreset < PromptPresetTemplates.Length)
+            promptEditorBuffer = PromptPresets.GetDefaultTemplate(selectedPromptPreset);
+        }
+
+        ImGui.SameLine();
+        bool isCurrentDefault = selectedPromptPreset == config.DefaultPromptPreset;
+        if (isCurrentDefault)
+        {
+            ImGui.BeginDisabled();
+            ImGui.Button("已是預設##btn", new Vector2(btnW, 0));
+            ImGui.EndDisabled();
+        }
+        else
+        {
+            if (ImGui.Button("設為預設##btn", new Vector2(btnW, 0)))
             {
-                promptEditorBuffer = PromptPresetTemplates[selectedPromptPreset];
+                config.DefaultPromptPreset = selectedPromptPreset;
+                config.Save();
+                translator.ClearCache();
+                promptTestResult = $"已將【{PromptPresets.BaseLabels[selectedPromptPreset]}】設為預設範本！快取已清空。";
             }
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("重新載入##btn", new Vector2(btnW, 0)))
+        {
+            promptEditorBuffer = PromptPresets.GetDefaultTemplate(selectedPromptPreset);
         }
 
         ImGui.Spacing();
@@ -719,8 +727,9 @@ public class ConfigWindow : Window
         ImGui.SameLine();
         if (ImGui.Button("還原為官方預設", new Vector2(actionBtnW, 32)))
         {
-            promptEditorBuffer = string.Empty;
             config.CustomSystemPrompt = string.Empty;
+            promptEditorBuffer = PromptPresets.GetDefaultTemplate(config.DefaultPromptPreset);
+            selectedPromptPreset = config.DefaultPromptPreset;
             config.Save();
             translator.ClearCache();
             promptTestResult = "已還原為官方預設提示詞！快取已清空。";

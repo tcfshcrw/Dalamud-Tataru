@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.Http;
@@ -323,7 +323,7 @@ public class GeminiTranslator : IDisposable
                 SourceLanguage.English => "English",
                 _ => "Japanese or English"
             };
-            var defaultSystemPrompt = $"You are an expert game localizer for Final Fantasy XIV (FFXIV). Translate the {sourceLangStr} dialogue into natural, immersive {targetLangStr}. Match character tone and personality. Return a JSON object with keys 'name' and 'text'.";
+            var defaultSystemPrompt = PromptPresets.GetDefaultTemplate(config.DefaultPromptPreset);
             var systemPrompt = string.IsNullOrWhiteSpace(config.CustomSystemPrompt) ? defaultSystemPrompt : config.CustomSystemPrompt;
 
             systemPrompt = systemPrompt
@@ -520,6 +520,24 @@ public class GeminiTranslator : IDisposable
             if (resText.StartsWith("\"") && resText.EndsWith("\"") && resText.Length >= 2)
             {
                 resText = resText.Substring(1, resText.Length - 2);
+            }
+
+            // 若目標語言為繁體中文，對輸出執行簡轉繁轉換（避免模型偶爾回傳簡體字）
+            if (config.TargetLang == TargetLanguage.TraditionalChinese)
+            {
+                resText = ChineseConverter.ToTraditional(resText);
+                if (!string.IsNullOrEmpty(resSpeaker))
+                {
+                    resSpeaker = ChineseConverter.ToTraditional(resSpeaker);
+                }
+            }
+            else if (config.TargetLang == TargetLanguage.SimplifiedChinese)
+            {
+                resText = ChineseConverter.ToSimplified(resText);
+                if (!string.IsNullOrEmpty(resSpeaker))
+                {
+                    resSpeaker = ChineseConverter.ToSimplified(resSpeaker);
+                }
             }
 
             // Post translation correction via Tataru glossary

@@ -33,9 +33,10 @@ public class Configuration : IPluginConfiguration
     public SourceLanguage SourceLang { get; set; } = SourceLanguage.Auto;
     public TargetLanguage TargetLang { get; set; } = TargetLanguage.TraditionalChinese;
     public string CustomSystemPrompt { get; set; } = string.Empty;
+    public int DefaultPromptPreset { get; set; } = 0;
 
     // LM Studio (Local LLM)
-    public string LmStudioEndpoint { get; set; } = "http://localhost:1234";
+    public string LmStudioEndpoint { get; set; } = "http://192.168.1.101:1234";
     public string LmStudioModel { get; set; } = string.Empty;
     public string LmStudioApiKey { get; set; } = string.Empty;
     public float LmStudioTemperature { get; set; } = 0.2f;

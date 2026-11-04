@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -32,8 +32,16 @@ public class LmStudioTranslator : IDisposable
 
     private string GetBaseUrl()
     {
-        var raw = string.IsNullOrWhiteSpace(config.LmStudioEndpoint) ? "http://localhost:1234" : config.LmStudioEndpoint.Trim();
+        var raw = string.IsNullOrWhiteSpace(config.LmStudioEndpoint) ? "http://192.168.1.101:1234" : config.LmStudioEndpoint.Trim();
         var trimmed = raw.TrimEnd('/');
+        if (!trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = $"http://{trimmed}";
+        }
+        if (!trimmed.Contains(':', StringComparison.OrdinalIgnoreCase) || (trimmed.IndexOf(':', 5) == -1 && trimmed.IndexOf(':', 6) == -1))
+        {
+            trimmed = $"{trimmed}:1234";
+        }
         if (trimmed.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
         {
             return trimmed;
@@ -101,7 +109,7 @@ public class LmStudioTranslator : IDisposable
                 SourceLanguage.English => "英文",
                 _ => "日文或英文"
             };
-            var defaultSystemPrompt = $"你是一位精通《Final Fantasy XIV》（最終幻想14）的資深在地化專家。請將玩家遭遇的{srcName}遊戲對話翻譯成自然、沉浸的{langName}。請忠實保留角色的語氣、性格、口吻與敬語，嚴禁翻譯成英文。請輸出符合 JSON Schema 的物件，包含 'name'（說話者中文名）與 'text'（翻譯後的對話內文）。";
+            var defaultSystemPrompt = PromptPresets.GetDefaultTemplate(config.DefaultPromptPreset);
             var systemPrompt = string.IsNullOrWhiteSpace(config.CustomSystemPrompt) ? defaultSystemPrompt : config.CustomSystemPrompt;
 
             systemPrompt = systemPrompt
@@ -297,6 +305,24 @@ public class LmStudioTranslator : IDisposable
             if (resText.StartsWith("\"") && resText.EndsWith("\"") && resText.Length >= 2)
             {
                 resText = resText.Substring(1, resText.Length - 2);
+            }
+
+            // 若目標語言為繁體中文，對 LM Studio 輸出執行簡轉繁轉換（解決本地模型習慣輸出簡體字的問題）
+            if (targetLang == TargetLanguage.TraditionalChinese)
+            {
+                resText = ChineseConverter.ToTraditional(resText);
+                if (!string.IsNullOrEmpty(resSpeaker))
+                {
+                    resSpeaker = ChineseConverter.ToTraditional(resSpeaker);
+                }
+            }
+            else if (targetLang == TargetLanguage.SimplifiedChinese)
+            {
+                resText = ChineseConverter.ToSimplified(resText);
+                if (!string.IsNullOrEmpty(resSpeaker))
+                {
+                    resSpeaker = ChineseConverter.ToSimplified(resSpeaker);
+                }
             }
 
             // Post translation correction via Tataru glossary
