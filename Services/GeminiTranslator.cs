@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.Http;
@@ -358,7 +358,7 @@ public class GeminiTranslator : IDisposable
                     new
                     {
                         role = "user",
-                        parts = new[] { new { text = JsonSerializer.Serialize(inputPayload) } }
+                        parts = new[] { new { text = $"請將以下遊戲對白忠實直譯為{targetLangStr}（嚴禁接話、嚴禁編造劇情）：\n說話者：{speaker}\n台詞原文：{text}" } }
                     }
                 },
                 generationConfig = new

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -140,7 +140,7 @@ public class LmStudioTranslator : IDisposable
                 messages = new[]
                 {
                     new { role = "system", content = systemPrompt },
-                    new { role = "user", content = JsonSerializer.Serialize(inputPayload) }
+                    new { role = "user", content = $"請將以下遊戲對白忠實直譯為{langName}（嚴禁接話、嚴禁編造劇情）：\n說話者：{speaker}\n台詞原文：{text}" }
                 },
                 temperature = temp,
                 response_format = new
@@ -184,7 +184,7 @@ public class LmStudioTranslator : IDisposable
                     messages = new[]
                     {
                         new { role = "system", content = systemPrompt },
-                        new { role = "user", content = JsonSerializer.Serialize(inputPayload) }
+                        new { role = "user", content = $"請將以下遊戲對白忠實直譯為{langName}（嚴禁接話、嚴禁編造劇情）：\n說話者：{speaker}\n台詞原文：{text}" }
                     },
                     temperature = temp
                 };
@@ -299,6 +299,16 @@ public class LmStudioTranslator : IDisposable
                 if (matchName.Success && string.IsNullOrEmpty(mappedSpeaker))
                 {
                     resSpeaker = matchName.Groups[1].Value;
+                }
+            }
+
+            // Fallback: If model returned colon-separated text instead of JSON
+            if (resText == toParse && (toParse.Contains("台詞：") || toParse.Contains("台词：") || toParse.Contains("台詞原文：") || toParse.Contains("台词原文：") || toParse.Contains("譯文：") || toParse.Contains("译文：")))
+            {
+                var matchColon = System.Text.RegularExpressions.Regex.Match(toParse, @"(?:台詞|台词|台詞原文|台词原文|譯文|译文)[：:]\s*(.+)$", System.Text.RegularExpressions.RegexOptions.Multiline);
+                if (matchColon.Success)
+                {
+                    resText = matchColon.Groups[1].Value.Trim();
                 }
             }
 
