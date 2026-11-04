@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -230,6 +231,49 @@ public class GlossaryManager
         }
 
         return speaker;
+    }
+
+    public string ApplyPreTranslation(string text, TargetLanguage targetLang)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return text;
+        if (config?.EnableCustomGlossary != true || config.CustomGlossaryEntries == null || config.CustomGlossaryEntries.Count == 0)
+        {
+            return text;
+        }
+
+        // Sort by longest term first so longer phrases match before shorter subwords
+        var activeEntries = config.CustomGlossaryEntries
+            .Where(e => e.Enabled && e.MatchDialogue)
+            .OrderByDescending(e => Math.Max(e.Japanese?.Trim().Length ?? 0, e.English?.Trim().Length ?? 0));
+
+        foreach (var entry in activeEntries)
+        {
+            var targetReplacement = targetLang == TargetLanguage.TraditionalChinese ? entry.TraditionalChinese : entry.SimplifiedChinese;
+            if (string.IsNullOrWhiteSpace(targetReplacement)) continue;
+            targetReplacement = targetReplacement.Trim();
+
+            // 1. Match Japanese phrase in source text
+            if (!string.IsNullOrWhiteSpace(entry.Japanese))
+            {
+                var jp = entry.Japanese.Trim();
+                if (text.Contains(jp))
+                {
+                    text = text.Replace(jp, targetReplacement);
+                }
+            }
+
+            // 2. Match English phrase in source text
+            if (!string.IsNullOrWhiteSpace(entry.English))
+            {
+                var en = entry.English.Trim();
+                if (text.Contains(en, StringComparison.OrdinalIgnoreCase))
+                {
+                    text = Regex.Replace(text, $@"(?<![a-zA-Z0-9]){Regex.Escape(en)}(?![a-zA-Z0-9])", targetReplacement, RegexOptions.IgnoreCase);
+                }
+            }
+        }
+
+        return text;
     }
 
     public string ApplyPostTranslation(string text, TargetLanguage targetLang)

@@ -97,6 +97,7 @@ public class GlossaryEditorWindow : Window
         glossary.SaveCustomGlossaryToFile(workingEntries);
         config.EnableCustomGlossary = workingEnableCustom;
         config.Save();
+        Plugin.Instance?.ClearTranslationCache();
         isDirty = false;
         saveStatusMessage = $"[OK] 已成功儲存至 CustomGlossary.json（共 {workingEntries.Count} 筆規則）！時間：{DateTime.Now:HH:mm:ss}";
     }

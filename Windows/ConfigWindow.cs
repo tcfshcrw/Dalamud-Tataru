@@ -1744,6 +1744,7 @@ public class ConfigWindow : Window
         {
             config.EnableCustomGlossary = enableCustom;
             config.Save();
+            translator.ClearCache();
         }
         ImGui.SameLine();
         ImGui.TextDisabled("（自訂規則優先度高於官方辭典，並會自動注入 AI 提示詞與後處理取代）");
@@ -1785,6 +1786,7 @@ public class ConfigWindow : Window
             {
                 config.CustomGlossaryEntries?.Clear();
                 config.Save();
+                translator.ClearCache();
                 showClearAllConfirm = false;
                 isEditingGlossary = false;
             }
@@ -1987,6 +1989,7 @@ public class ConfigWindow : Window
                 {
                     entry.Enabled = enabled;
                     config.Save();
+                    translator.ClearCache();
                 }
 
                 // 2. Japanese
@@ -2092,6 +2095,7 @@ public class ConfigWindow : Window
                 if (!string.IsNullOrEmpty(copy.Notes)) copy.Notes += " (副本)";
                 config.CustomGlossaryEntries?.Add(copy);
                 config.Save();
+                translator.ClearCache();
             }
 
             if (toDelete != null)
@@ -2102,6 +2106,7 @@ public class ConfigWindow : Window
                     isEditingGlossary = false;
                 }
                 config.Save();
+                translator.ClearCache();
             }
         }
     }
@@ -2281,6 +2286,7 @@ public class ConfigWindow : Window
         }
 
         config.Save();
+        translator.ClearCache();
         isEditingGlossary = false;
         editorValidationMsg = string.Empty;
     }
@@ -2302,6 +2308,7 @@ public class ConfigWindow : Window
             }
         }
         config.Save();
+        translator.ClearCache();
     }
 
     private void ExecuteImport(bool overwrite)
@@ -2377,6 +2384,7 @@ public class ConfigWindow : Window
             }
 
             config.Save();
+            translator.ClearCache();
             importExportStatus = $"成功匯入 {imported.Count} 筆對照！{(overwrite ? "（已覆蓋原清單）" : "（已合併至現有清單）")}";
         }
         catch (Exception ex)

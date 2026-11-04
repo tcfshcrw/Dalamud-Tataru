@@ -569,6 +569,7 @@ public class GeminiTranslator : IDisposable
         }
 
         var (maskedSpeaker, maskedText) = PlayerNameHelper.Mask(speaker, text, config);
+        maskedText = glossary.ApplyPreTranslation(maskedText, config.TargetLang);
 
         var cacheKey = $"{config.PrimaryEngine}::{config.SourceLang}::{config.TargetLang}::{speaker}::{text}";
         if (cache.TryGetValue(cacheKey, out var cached))

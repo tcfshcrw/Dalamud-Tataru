@@ -474,6 +474,11 @@ public class Plugin : IDalamudPlugin
         UpdateDtrBar();
     }
 
+    public void ClearTranslationCache()
+    {
+        translator.ClearCache();
+    }
+
     public void UpdateDtrBar()
     {
         if (dtrEntry == null) return;
