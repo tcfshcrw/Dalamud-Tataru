@@ -130,8 +130,26 @@ public partial class ChatTranslationService : IDisposable
                 return;
             }
 
-            // 6. Fire asynchronous translation task
-            Task.Run(async () => await ProcessChatMessageAsync(message.LogKind, senderName, cleaned, messageText));
+            // 6. Check if original message should be intercepted/suppressed
+            bool wasSuppressed = false;
+            if (config.ChatSuppressOriginal && config.ChatOutputToChatLog)
+            {
+                message.PreventOriginal();
+                wasSuppressed = true;
+            }
+
+            var rawSender = message.Sender;
+            var rawMessage = message.Message;
+
+            // 7. Fire asynchronous translation task
+            Task.Run(async () => await ProcessChatMessageAsync(
+                message.LogKind,
+                senderName,
+                cleaned,
+                messageText,
+                wasSuppressed,
+                rawSender,
+                rawMessage));
         }
         catch (Exception ex)
         {
@@ -139,25 +157,46 @@ public partial class ChatTranslationService : IDisposable
         }
     }
 
-    private async Task ProcessChatMessageAsync(XivChatType chatType, string sender, string textToTranslate, string fullOriginalText)
+    private async Task ProcessChatMessageAsync(
+        XivChatType chatType,
+        string sender,
+        string textToTranslate,
+        string fullOriginalText,
+        bool wasSuppressed,
+        Dalamud.Game.Text.SeStringHandling.SeString rawSender,
+        Dalamud.Game.Text.SeStringHandling.SeString rawMessage)
     {
         try
         {
             var (translatedSpeaker, translatedText) = await translator.TranslateAsync(sender, textToTranslate);
 
             if (string.IsNullOrWhiteSpace(translatedText))
+            {
+                if (wasSuppressed)
+                {
+                    RestoreOriginalChatMessage(chatType, rawSender, rawMessage);
+                }
                 return;
+            }
 
             // Skip output if translation resulted in an internal error string
             if (translatedText.StartsWith("[") && (translatedText.Contains("失敗") || translatedText.Contains("異常") || translatedText.Contains("錯誤")))
             {
                 pluginLog.Warning($"聊天訊息翻譯未成功: {translatedText}");
+                if (wasSuppressed)
+                {
+                    RestoreOriginalChatMessage(chatType, rawSender, rawMessage);
+                }
                 return;
             }
 
             // Skip if translation is identical to original (e.g. text was already in Chinese)
             if (string.Equals(textToTranslate.Trim(), translatedText.Trim(), StringComparison.OrdinalIgnoreCase))
             {
+                if (wasSuppressed)
+                {
+                    RestoreOriginalChatMessage(chatType, rawSender, rawMessage);
+                }
                 return;
             }
 
@@ -196,6 +235,31 @@ public partial class ChatTranslationService : IDisposable
         catch (Exception ex)
         {
             pluginLog.Error(ex, $"異步翻譯聊天訊息失敗 (來源: {sender}): {textToTranslate}");
+            if (wasSuppressed)
+            {
+                RestoreOriginalChatMessage(chatType, rawSender, rawMessage);
+            }
+        }
+    }
+
+    private void RestoreOriginalChatMessage(
+        XivChatType chatType,
+        Dalamud.Game.Text.SeStringHandling.SeString rawSender,
+        Dalamud.Game.Text.SeStringHandling.SeString rawMessage)
+    {
+        try
+        {
+            RecordPluginOutput(rawMessage.TextValue);
+            chatGui.Print(new XivChatEntry
+            {
+                Type = chatType,
+                Name = rawSender,
+                Message = rawMessage
+            });
+        }
+        catch (Exception ex)
+        {
+            pluginLog.Error(ex, "還原原生未翻譯訊息時發生異常。");
         }
     }
 
@@ -209,17 +273,21 @@ public partial class ChatTranslationService : IDisposable
         string outSender = config.ChatEnableGlyphFolding ? GlyphFolder.Fold(sender) : sender;
 
         var sb = new SeStringBuilder();
-        if (config.ChatShowColoredPrefix)
+        bool prefixInMessage = string.IsNullOrEmpty(sender) || config.ChatUseEchoChannel;
+        if (prefixInMessage)
         {
-            // 58 is light green/teal in Dalamud UI foreground
-            sb.AddUiForeground(prefix + " ", 58);
-        }
-        else
-        {
-            sb.Append(prefix + " ");
+            if (config.ChatShowColoredPrefix)
+            {
+                // 58 is light green/teal in Dalamud UI foreground
+                sb.AddUiForeground(prefix + " ", 58);
+            }
+            else
+            {
+                sb.Append(prefix + " ");
+            }
         }
 
-        if (config.ChatHideOriginal)
+        if (config.ChatHideOriginal || config.ChatSuppressOriginal)
         {
             sb.Append(outTranslated);
         }

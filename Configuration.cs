@@ -61,6 +61,7 @@ public class Configuration : IPluginConfiguration
     // Chat & System Translation
     public bool EnableChatTranslation { get; set; } = false;
     public bool ChatOutputToChatLog { get; set; } = true;
+    public bool ChatSuppressOriginal { get; set; } = false;
     public bool ChatHideOriginal { get; set; } = false;
     public bool ChatUseEchoChannel { get; set; } = false;
     public bool ChatShowColoredPrefix { get; set; } = true;

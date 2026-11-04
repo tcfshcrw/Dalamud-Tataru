@@ -205,11 +205,30 @@ public class ConfigWindow : Window
             {
                 ImGui.Indent(20f);
 
+                var suppressOriginal = config.ChatSuppressOriginal;
+                if (ImGui.Checkbox("攔截並隱藏遊戲原生訊息 (直接以譯文替換，避免重複出現兩行)", ref suppressOriginal))
+                {
+                    config.ChatSuppressOriginal = suppressOriginal;
+                    if (suppressOriginal)
+                    {
+                        config.ChatHideOriginal = true;
+                    }
+                    config.Save();
+                }
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.SetTooltip("啟用後，當收到符合勾選頻道的日文/英文訊息時，將直接攔截隱藏遊戲本體原生的聊天訊息，\n待翻譯完成後只輸出中文翻譯，聊天框不會再同時出現日文與中文兩行。\n（若該訊息無需翻譯或翻譯發生異常，系統會自動還原印出原始訊息，不用擔心遺漏重要訊息）");
+                }
+
                 var hideOriginal = config.ChatHideOriginal;
-                if (ImGui.Checkbox("僅輸出翻譯內容 (隱藏原文，未勾選時顯示：原文 [譯] 譯文)", ref hideOriginal))
+                if (ImGui.Checkbox("譯文輸出格式：僅輸出翻譯內容 (未勾選時顯示：原文 [譯] 譯文)", ref hideOriginal))
                 {
                     config.ChatHideOriginal = hideOriginal;
                     config.Save();
+                }
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.SetTooltip("控制插件輸出的訊息格式：\n勾選：只顯示譯文內容（如：[文] 離開了休息區。）\n未勾選：同時包含原文與譯文（如：[文] レストエリアから離れた。 [譯] 離開了休息區。）");
                 }
 
                 var useEcho = config.ChatUseEchoChannel;
