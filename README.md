@@ -18,7 +18,7 @@
   - **`JournalAccept`（接取任務確認視窗）**：向 NPC 接取任務時直接閱讀中文任務說明與條件。
   - **`JournalResult`（回報任務結算視窗）**：完成任務交接時劇情總結文字同步原位替換。
   - 內建非同步執行緒安全防迴圈快取，開啟過之任務 0 毫秒秒出，不卡頓且不浪費 API 額度。
-- **全聊天頻道即時翻譯（參考 ChatTranslation 架構）**：
+- **全聊天頻道即時翻譯（參考 ChatTranslated 架構）**：
   - 支援小隊、部隊、大喊、密語、說話、團隊、系統訊息等細緻頻道過濾。
   - 可選擇「直接輸出至聊天視窗（支援原味顏色標籤與自訂前綴）」或「開啟獨立聊天翻譯歷史視窗 (`/tataru chat`)」。
   - 內建巨集過濾、網址忽略、自己發言過濾與副本自動啟用開關。
@@ -187,5 +187,5 @@ Dalumud-Tataru/
 
 - **[winw1010/tataru-assistant](https://github.com/winw1010/tataru-assistant)**：感謝 Tataru Assistant 團隊為 FF14 中文社群長期整理與維護的專有名詞庫與譯名對照表。
 - **[lokinmodar/Echoglossian](https://github.com/lokinmodar/Echoglossian)**：感謝 Echoglossian 開發團隊，本插件的任務詳細說明欄與接取/回報視窗原生替換機制（`JournalDetail` / `JournalAccept` / `JournalResult`）深獲其架構啟發與技術借鏡。
-- **[kalilistic/ChatTranslation](https://github.com/kalilistic/ChatTranslation)**：感謝 ChatTranslation 開發團隊，為本插件的聊天頻道即時監聽、色彩標籤重現與訊息分流過濾提供了極具價值的設計參考。
+- **[kelvin124124/ChatTranslated](https://github.com/kelvin124124/ChatTranslated)**：感謝 ChatTranslated 開發團隊，為本插件的聊天頻道即時監聽、色彩標籤重現與訊息分流過濾提供了極具價值的設計參考。
 - **[Dalamud](https://github.com/goatcorp/Dalamud)**：感謝 Goatcorp 與 Dalamud 團隊為 Final Fantasy XIV 打造的卓越插件生態與開發框架。
