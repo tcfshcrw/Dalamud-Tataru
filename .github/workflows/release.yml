@@ -169,10 +169,23 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add pluginmaster.json
-          $status = git status --porcelain
-          if ($status) {
+          $diff = git diff --staged --name-only
+          if ($diff) {
               git commit -m "chore(release): update pluginmaster.json to ${{ env.VERSION_TAG }} [skip ci]"
-              git push origin main
+              $pushed = $false
+              for ($i = 0; $i -lt 5; $i++) {
+                  git pull --rebase origin main
+                  git push origin main
+                  if ($LASTEXITCODE -eq 0) {
+                      $pushed = $true
+                      break
+                  }
+                  Write-Warning "Push failed on attempt $($i + 1), retrying in 3 seconds..."
+                  Start-Sleep -Seconds 3
+              }
+              if (-not $pushed) {
+                  Write-Warning "Failed to push pluginmaster.json after retries; please sync manually if needed."
+              }
           } else {
               Write-Host "No changes in pluginmaster.json to commit."
           }

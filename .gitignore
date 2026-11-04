@@ -11,6 +11,9 @@ obj/
 .idea/
 *.DotSettings.user
 
+## Release Artifacts
+release-artifacts/
+
 ## OS
 .DS_Store
 Thumbs.db
