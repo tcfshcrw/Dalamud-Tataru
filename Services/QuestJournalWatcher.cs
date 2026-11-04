@@ -8,7 +8,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace DalamudTataru.Services;
 
-public unsafe class QuestJournalWatcher : IDisposable
+public class QuestJournalWatcher : IDisposable
 {
     private readonly IFramework framework;
     private readonly IGameGui gameGui;
@@ -56,7 +56,7 @@ public unsafe class QuestJournalWatcher : IDisposable
         }
     }
 
-    private void OnFrameworkUpdate(IFramework _)
+    private unsafe void OnFrameworkUpdate(IFramework _)
     {
         if (!config.Enabled) return;
 
@@ -115,9 +115,9 @@ public unsafe class QuestJournalWatcher : IDisposable
         }
     }
 
-    private delegate void AddonFieldProcessor(AtkUnitBase* addon);
+    private unsafe delegate void AddonFieldProcessor(AtkUnitBase* addon);
 
-    private void ProcessAddon(string addonName, AddonFieldProcessor? specificFieldProcessor = null)
+    private unsafe void ProcessAddon(string addonName, AddonFieldProcessor? specificFieldProcessor = null)
     {
         var addonPtr = gameGui.GetAddonByName(addonName);
         if (addonPtr.IsNull) return;
@@ -139,7 +139,7 @@ public unsafe class QuestJournalWatcher : IDisposable
         ProcessUldManager(&addon->UldManager);
     }
 
-    private void ProcessUldManager(AtkUldManager* uldManager, int depth = 0)
+    private unsafe void ProcessUldManager(AtkUldManager* uldManager, int depth = 0)
     {
         if (uldManager == null || uldManager->NodeList == null || depth > 8) return;
 
@@ -164,7 +164,7 @@ public unsafe class QuestJournalWatcher : IDisposable
         }
     }
 
-    private void TryProcessTextNode(AtkTextNode* textNode)
+    private unsafe void TryProcessTextNode(AtkTextNode* textNode)
     {
         if (textNode == null) return;
 
@@ -222,37 +222,42 @@ public unsafe class QuestJournalWatcher : IDisposable
         // 若無快取且尚未送翻，啟動背景非同步翻譯
         if (pendingTranslations.TryAdd(trimmed, true))
         {
-            Task.Run(async () =>
+            RequestTranslationAsync(trimmed);
+        }
+    }
+
+    private void RequestTranslationAsync(string trimmed)
+    {
+        Task.Run(async () =>
+        {
+            try
             {
-                try
+                var (_, translated) = await translator.TranslateAsync(string.Empty, trimmed);
+
+                // 避免將錯誤代碼（如 [Gemini 錯誤]）寫入遊戲原生介面
+                if (!string.IsNullOrWhiteSpace(translated) && !translated.StartsWith("["))
                 {
-                    var (_, translated) = await translator.TranslateAsync(string.Empty, trimmed);
+                    // 若啟用缺字轉折映射，自動將中文字元轉換為遊戲字型支援之字元
+                    string finalResult = config.QuestEnableGlyphFolding
+                        ? GlyphFolder.Fold(translated, config.CustomGlyphEntries)
+                        : translated;
 
-                    // 避免將錯誤代碼（如 [Gemini 錯誤]）寫入遊戲原生介面
-                    if (!string.IsNullOrWhiteSpace(translated) && !translated.StartsWith("["))
+                    translationCache[trimmed] = finalResult;
+                    lock (translatedSet)
                     {
-                        // 若啟用缺字轉折映射，自動將中文字元轉換為遊戲字型支援之字元
-                        string finalResult = config.QuestEnableGlyphFolding
-                            ? GlyphFolder.Fold(translated, config.CustomGlyphEntries)
-                            : translated;
-
-                        translationCache[trimmed] = finalResult;
-                        lock (translatedSet)
-                        {
-                            translatedSet.Add(finalResult);
-                        }
+                        translatedSet.Add(finalResult);
                     }
                 }
-                catch (Exception ex)
-                {
-                    log.Warning(ex, $"任務說明翻譯失敗: {trimmed}");
-                }
-                finally
-                {
-                    pendingTranslations.TryRemove(trimmed, out _);
-                }
-            });
-        }
+            }
+            catch (Exception ex)
+            {
+                log.Warning(ex, $"任務說明翻譯失敗: {trimmed}");
+            }
+            finally
+            {
+                pendingTranslations.TryRemove(trimmed, out _);
+            }
+        });
     }
 
     private static bool IsIgnoredOrSystemLabel(string text)
