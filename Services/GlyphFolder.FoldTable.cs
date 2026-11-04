@@ -63,8 +63,8 @@ public static partial class GlyphFolder
         "侠倶内刹即呉寛徴悦戸撃暦横歳歴涙温湿溌状産祷税絶緑縁繍繋脱脚莱蒋虚説猫頼郷鋭録錬閲鶏麹麺黄";
 
     // ---- CustomHan: 9 entries (includes '卡' -> 'カ') -------------------------
-    private const string CustomHanKeys = "\u5361\u56C9\u59B3\u70BA\u81FA\u8457\u88E1\u9AD4\u9EDE";
-    private const string CustomHanValues = "\u30AB\u7F85\u4F60\u7232\u53F0\u7740\u88CF\u4F53\u70B9";
+    private const string CustomHanKeys = "\u4F54\u50A2\u5361\u56C9\u59B3\u6A11\u70BA\u7260\u7526\u7942\u7955\u81FA\u8216\u8457\u85B0\u88E1\u8B94\u8C54\u8E5F\u8FF4\u9935\u9AD4\u9EDE";
+    private const string CustomHanValues = "\u5360\u5BB6\u30AB\u7F85\u4F60\u6881\u7232\u5B83\u8607\u4ED6\u79D8\u53F0\u8217\u7740\u85AB\u88CF\u8B87\u8276\u8DE1\u56DE\u5582\u4F53\u70B9";
 
     private static bool TryLookalike(char c, out char replacement) =>
         Lookup(CustomHanKeys, CustomHanValues, c, out replacement)
