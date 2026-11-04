@@ -86,16 +86,23 @@ jobs:
       - name: Build and Package Plugin
         shell: pwsh
         run: |
-          dotnet build --configuration Release -p:Platform=x64 -p:Version=${{ env.ASSEMBLY_VERSION }} -p:DalamudLibPath="$env:DALAMUD_HOME/" -v:normal 2>&1 | Tee-Object -FilePath "build.log"
+          dotnet build --configuration Release -p:Platform=x64 -p:Version=${{ env.ASSEMBLY_VERSION }} -p:DalamudLibPath="$env:DALAMUD_HOME/" 2>&1 | Tee-Object -FilePath "build.log"
           if ($LASTEXITCODE -ne 0) {
               git config --global user.name "github-actions[bot]"
               git config --global user.email "github-actions[bot]@users.noreply.github.com"
               git checkout -B ci-build-log
               git add build.log
               git commit -m "ci: capture build error log"
-              git push origin ci-build-log --force
+              git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git ci-build-log --force
               exit 1
           }
+
+      - name: Upload Build Log Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
 
       - name: Update pluginmaster.json and Prepare Release Artifacts
         shell: pwsh
