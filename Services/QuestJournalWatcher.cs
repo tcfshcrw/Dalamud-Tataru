@@ -115,7 +115,9 @@ public unsafe class QuestJournalWatcher : IDisposable
         }
     }
 
-    private void ProcessAddon(string addonName, Action<AtkUnitBase*>? specificFieldProcessor = null)
+    private delegate void AddonFieldProcessor(AtkUnitBase* addon);
+
+    private void ProcessAddon(string addonName, AddonFieldProcessor? specificFieldProcessor = null)
     {
         var addonPtr = gameGui.GetAddonByName(addonName);
         if (addonPtr.IsNull) return;
