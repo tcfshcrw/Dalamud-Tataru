@@ -75,8 +75,20 @@ public class QuestJournalWatcher : IDisposable
                     {
                         TryProcessTextNode(detail->DutyNameTextNode);
                         TryProcessTextNode(detail->DutyLevelTextNode);
+                        TryProcessTextNode(detail->RewardsReceivedTextNode);
                         TryProcessTextNode(detail->AtkTextNode2A8);
+                        TryProcessTextNode(detail->RequirementsNotMetLabelTextNode);
+                        TryProcessTextNode(detail->RequirementsNotMetTextNode);
                         TryProcessTextNode(detail->AtkTextNode2C0);
+
+                        if (detail->JournalCanvasNode != null)
+                        {
+                            ProcessUldManager(&detail->JournalCanvasNode->UldManager);
+                            if (detail->JournalCanvasNode->AtkResNode != null)
+                            {
+                                ProcessNodeTree(detail->JournalCanvasNode->AtkResNode);
+                            }
+                        }
                     }
                 });
             }
@@ -91,6 +103,15 @@ public class QuestJournalWatcher : IDisposable
                     {
                         TryProcessTextNode(accept->QuestTitleText);
                         TryProcessTextNode(accept->JournalCanvasText);
+
+                        if (accept->JournalCanvas != null)
+                        {
+                            ProcessUldManager(&accept->JournalCanvas->UldManager);
+                            if (accept->JournalCanvas->AtkResNode != null)
+                            {
+                                ProcessNodeTree(accept->JournalCanvas->AtkResNode);
+                            }
+                        }
                     }
                 });
             }
@@ -105,6 +126,15 @@ public class QuestJournalWatcher : IDisposable
                     {
                         TryProcessTextNode(result->AtkTextNode250);
                         TryProcessTextNode(result->AtkTextNode258);
+
+                        if (result->AtkComponentJournalCanvas268 != null)
+                        {
+                            ProcessUldManager(&result->AtkComponentJournalCanvas268->UldManager);
+                            if (result->AtkComponentJournalCanvas268->AtkResNode != null)
+                            {
+                                ProcessNodeTree(result->AtkComponentJournalCanvas268->AtkResNode);
+                            }
+                        }
                     }
                 });
             }
@@ -137,6 +167,35 @@ public class QuestJournalWatcher : IDisposable
 
         // 2. 深度遍歷 ULD 樹（自動深入 JournalCanvas 及所有文字元件）
         ProcessUldManager(&addon->UldManager);
+
+        // 3. 遍歷整個節點樹鏈表 (RootNode -> ChildNode -> NextSiblingNode)
+        if (addon->RootNode != null)
+        {
+            ProcessNodeTree(addon->RootNode);
+        }
+    }
+
+    private unsafe void ProcessNodeTree(AtkResNode* node, int depth = 0)
+    {
+        if (node == null || depth > 10) return;
+
+        if (node->Type == NodeType.Text)
+        {
+            TryProcessTextNode((AtkTextNode*)node);
+        }
+        else if (node->Type == NodeType.Component)
+        {
+            var compNode = (AtkComponentNode*)node;
+            if (compNode->Component != null)
+            {
+                ProcessUldManager(&compNode->Component->UldManager, depth + 1);
+            }
+        }
+
+        for (var child = node->ChildNode; child != null; child = child->NextSiblingNode)
+        {
+            ProcessNodeTree(child, depth + 1);
+        }
     }
 
     private unsafe void ProcessUldManager(AtkUldManager* uldManager, int depth = 0)
@@ -161,15 +220,17 @@ public class QuestJournalWatcher : IDisposable
                     ProcessUldManager(&compNode->Component->UldManager, depth + 1);
                 }
             }
+
+            if (node->ChildNode != null)
+            {
+                ProcessNodeTree(node->ChildNode, depth + 1);
+            }
         }
     }
 
     private unsafe void TryProcessTextNode(AtkTextNode* textNode)
     {
         if (textNode == null) return;
-
-        // 僅處理可見節點
-        if (!textNode->AtkResNode.IsVisible()) return;
 
         string currentText;
         try
@@ -204,7 +265,14 @@ public class QuestJournalWatcher : IDisposable
                 try
                 {
                     textNode->SetText(cachedTranslation);
-                    textNode->ResizeNodeForCurrentText();
+                    try
+                    {
+                        textNode->ResizeNodeForCurrentText();
+                    }
+                    catch
+                    {
+                        // 某些固定排版節點可能不支援或無須手動重設尺寸
+                    }
 
                     lock (translatedSet)
                     {
@@ -213,7 +281,7 @@ public class QuestJournalWatcher : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    log.Debug(ex, "調用 SetText 替換任務說明節點文字失敗。");
+                    log.Warning(ex, $"調用 SetText 替換任務說明節點文字失敗: {cachedTranslation}");
                 }
             }
             return;
