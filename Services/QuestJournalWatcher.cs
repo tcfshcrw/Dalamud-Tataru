@@ -65,8 +65,6 @@ public class QuestJournalWatcher : IDisposable
 
         try
         {
-            var visited = new HashSet<nint>();
-
             // 1. 任務詳細說明欄 (JournalDetail)
             if (config.TranslateJournalDetail)
             {
@@ -82,25 +80,17 @@ public class QuestJournalWatcher : IDisposable
                         TryProcessTextNode(detail->RequirementsNotMetLabelTextNode);
                         TryProcessTextNode(detail->RequirementsNotMetTextNode);
                         TryProcessTextNode(detail->AtkTextNode2C0);
-                        TryProcessTextNode(GetTextNodeAtOffset(detail, 0x248));
-                        TryProcessTextNode(GetTextNodeAtOffset(detail, 0x280));
-                        TryProcessTextNode(GetTextNodeAtOffset(detail, 0x288));
-                        TryProcessTextNode(GetTextNodeAtOffset(detail, 0x2B0));
 
                         if (detail->JournalCanvasNode != null)
                         {
-                            ProcessUldManager(&detail->JournalCanvasNode->UldManager, visited);
+                            ProcessUldManager(&detail->JournalCanvasNode->UldManager);
                             if (detail->JournalCanvasNode->AtkResNode != null)
                             {
-                                TraverseNodeTree(detail->JournalCanvasNode->AtkResNode, visited);
-                            }
-                            if (detail->JournalCanvasNode->OwnerNode != null)
-                            {
-                                TraverseNodeTree((AtkResNode*)detail->JournalCanvasNode->OwnerNode, visited);
+                                ProcessNodeTree(detail->JournalCanvasNode->AtkResNode);
                             }
                         }
                     }
-                }, visited);
+                });
             }
 
             // 2. 接取任務確認視窗 (JournalAccept)
@@ -113,25 +103,17 @@ public class QuestJournalWatcher : IDisposable
                     {
                         TryProcessTextNode(accept->QuestTitleText);
                         TryProcessTextNode(accept->JournalCanvasText);
-                        TryProcessTextNode(GetTextNodeAtOffset(accept, 0x248));
-                        TryProcessTextNode(GetTextNodeAtOffset(accept, 0x280));
-                        TryProcessTextNode(GetTextNodeAtOffset(accept, 0x288));
-                        TryProcessTextNode(GetTextNodeAtOffset(accept, 0x2B0));
 
                         if (accept->JournalCanvas != null)
                         {
-                            ProcessUldManager(&accept->JournalCanvas->UldManager, visited);
+                            ProcessUldManager(&accept->JournalCanvas->UldManager);
                             if (accept->JournalCanvas->AtkResNode != null)
                             {
-                                TraverseNodeTree(accept->JournalCanvas->AtkResNode, visited);
-                            }
-                            if (accept->JournalCanvas->OwnerNode != null)
-                            {
-                                TraverseNodeTree((AtkResNode*)accept->JournalCanvas->OwnerNode, visited);
+                                ProcessNodeTree(accept->JournalCanvas->AtkResNode);
                             }
                         }
                     }
-                }, visited);
+                });
             }
 
             // 3. 回報完成任務視窗 (JournalResult)
@@ -144,23 +126,17 @@ public class QuestJournalWatcher : IDisposable
                     {
                         TryProcessTextNode(result->AtkTextNode250);
                         TryProcessTextNode(result->AtkTextNode258);
-                        TryProcessTextNode(GetTextNodeAtOffset(result, 0x248));
-                        TryProcessTextNode(GetTextNodeAtOffset(result, 0x260));
 
                         if (result->AtkComponentJournalCanvas268 != null)
                         {
-                            ProcessUldManager(&result->AtkComponentJournalCanvas268->UldManager, visited);
+                            ProcessUldManager(&result->AtkComponentJournalCanvas268->UldManager);
                             if (result->AtkComponentJournalCanvas268->AtkResNode != null)
                             {
-                                TraverseNodeTree(result->AtkComponentJournalCanvas268->AtkResNode, visited);
-                            }
-                            if (result->AtkComponentJournalCanvas268->OwnerNode != null)
-                            {
-                                TraverseNodeTree((AtkResNode*)result->AtkComponentJournalCanvas268->OwnerNode, visited);
+                                ProcessNodeTree(result->AtkComponentJournalCanvas268->AtkResNode);
                             }
                         }
                     }
-                }, visited);
+                });
             }
         }
         catch (Exception ex)
@@ -169,22 +145,9 @@ public class QuestJournalWatcher : IDisposable
         }
     }
 
-    private static unsafe AtkTextNode* GetTextNodeAtOffset(void* basePtr, int offset)
-    {
-        if (basePtr == null) return null;
-        try
-        {
-            return *(AtkTextNode**)((byte*)basePtr + offset);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
     private unsafe delegate void AddonFieldProcessor(AtkUnitBase* addon);
 
-    private unsafe void ProcessAddon(string addonName, AddonFieldProcessor? specificFieldProcessor, HashSet<nint> visited)
+    private unsafe void ProcessAddon(string addonName, AddonFieldProcessor? specificFieldProcessor = null)
     {
         var addonPtr = gameGui.GetAddonByName(addonName);
         if (addonPtr.IsNull) return;
@@ -202,22 +165,19 @@ public class QuestJournalWatcher : IDisposable
             // 忽略個別結構欄位異常
         }
 
-        // 2. 深度遍歷 ULD 樹（包括 NodeList、Objects、RootNode）
-        ProcessUldManager(&addon->UldManager, visited);
+        // 2. 深度遍歷 ULD 樹（自動深入 JournalCanvas 及所有文字元件）
+        ProcessUldManager(&addon->UldManager);
 
-        // 3. 遍歷整個節點樹
+        // 3. 遍歷整個節點樹鏈表 (RootNode -> ChildNode -> NextSiblingNode)
         if (addon->RootNode != null)
         {
-            TraverseNodeTree(addon->RootNode, visited);
+            ProcessNodeTree(addon->RootNode);
         }
     }
 
-    private unsafe void TraverseNodeTree(AtkResNode* node, HashSet<nint> visited, int depth = 0)
+    private unsafe void ProcessNodeTree(AtkResNode* node, int depth = 0)
     {
-        if (node == null || depth > 12) return;
-
-        var ptr = (nint)node;
-        if (!visited.Add(ptr)) return;
+        if (node == null || depth > 10) return;
 
         if (node->Type == NodeType.Text)
         {
@@ -228,71 +188,42 @@ public class QuestJournalWatcher : IDisposable
             var compNode = (AtkComponentNode*)node;
             if (compNode->Component != null)
             {
-                ProcessUldManager(&compNode->Component->UldManager, visited, depth + 1);
-                if (compNode->Component->AtkResNode != null)
-                {
-                    TraverseNodeTree(compNode->Component->AtkResNode, visited, depth + 1);
-                }
+                ProcessUldManager(&compNode->Component->UldManager, depth + 1);
             }
         }
 
-        // FFXIV 的子節點指針 ChildNode 指向鏈表末尾或開頭，需完整遍歷雙向兄弟鏈
-        var child = node->ChildNode;
-        if (child != null)
+        for (var child = node->ChildNode; child != null; child = child->NextSiblingNode)
         {
-            // 向後走訪 (PrevSiblingNode: FFXIV 常用反向遍歷方式)
-            for (var curr = child; curr != null; curr = curr->PrevSiblingNode)
-            {
-                TraverseNodeTree(curr, visited, depth + 1);
-            }
-
-            // 向前走訪 (NextSiblingNode: 確保雙向全覆蓋)
-            for (var curr = child->NextSiblingNode; curr != null; curr = curr->NextSiblingNode)
-            {
-                TraverseNodeTree(curr, visited, depth + 1);
-            }
+            ProcessNodeTree(child, depth + 1);
         }
     }
 
-    private unsafe void ProcessUldManager(AtkUldManager* uldManager, HashSet<nint> visited, int depth = 0)
+    private unsafe void ProcessUldManager(AtkUldManager* uldManager, int depth = 0)
     {
-        if (uldManager == null || depth > 10) return;
+        if (uldManager == null || uldManager->NodeList == null || depth > 8) return;
 
-        var uldPtr = (nint)uldManager;
-        if (!visited.Add(uldPtr)) return;
-
-        // 1. 遍歷 RootNode
-        if (uldManager->RootNode != null)
+        for (var i = 0; i < uldManager->NodeListCount; i++)
         {
-            TraverseNodeTree(uldManager->RootNode, visited, depth + 1);
-        }
+            var node = uldManager->NodeList[i];
+            if (node == null) continue;
 
-        // 2. 遍歷標準 NodeList
-        if (uldManager->NodeList != null)
-        {
-            for (var i = 0; i < uldManager->NodeListCount; i++)
+            if (node->Type == NodeType.Text)
             {
-                var node = uldManager->NodeList[i];
-                if (node == null) continue;
-                TraverseNodeTree(node, visited, depth + 1);
+                var textNode = (AtkTextNode*)node;
+                TryProcessTextNode(textNode);
             }
-        }
-
-        // 3. 遍歷 Objects (動態物件/列表項目，例如任務目的、冒險回顧等項目清單)
-        if (uldManager->Objects != null)
-        {
-            for (var i = 0; i < uldManager->ObjectCount; i++)
+            else if (node->Type == NodeType.Component)
             {
-                var obj = &uldManager->Objects[i];
-                if (obj->NodeList != null)
+                var compNode = (AtkComponentNode*)node;
+                if (compNode->Component != null)
                 {
-                    for (var j = 0; j < obj->NodeCount; j++)
-                    {
-                        var objNode = obj->NodeList[j];
-                        if (objNode == null) continue;
-                        TraverseNodeTree(objNode, visited, depth + 1);
-                    }
+                    ProcessUldManager(&compNode->Component->UldManager, depth + 1);
                 }
+            }
+
+            if (node->ChildNode != null)
+            {
+                ProcessNodeTree(node->ChildNode, depth + 1);
             }
         }
     }
@@ -374,7 +305,6 @@ public class QuestJournalWatcher : IDisposable
                 // 檢查是否為錯誤代碼（避免寫入介面）
                 if (IsTranslationError(rawTranslated))
                 {
-                    log.Debug($"任務說明翻譯結果為錯誤訊息，予以跳過: {rawTranslated}");
                     return;
                 }
 
