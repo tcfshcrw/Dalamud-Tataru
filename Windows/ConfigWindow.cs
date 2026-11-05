@@ -946,6 +946,19 @@ public class ConfigWindow : Window
             }
         }
 
+        if (questJournalWatcher != null && !questJournalWatcher.RecentDetectedTexts.IsEmpty)
+        {
+            if (ImGui.TreeNode("任務文字節點即時診斷檢視 (Debug Logs)"))
+            {
+                ImGui.TextDisabled("顯示最近偵測與處理的任務介面文字狀態：");
+                foreach (var item in questJournalWatcher.RecentDetectedTexts)
+                {
+                    ImGui.BulletText(item);
+                }
+                ImGui.TreePop();
+            }
+        }
+
         ImGui.Spacing();
         ImGui.Separator();
         ImGui.Spacing();

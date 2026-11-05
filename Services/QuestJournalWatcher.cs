@@ -21,6 +21,10 @@ public class QuestJournalWatcher : IDisposable
     private readonly ConcurrentDictionary<string, bool> pendingTranslations = new();
     private readonly HashSet<string> translatedSet = new();
 
+    // 除錯與即時診斷佇列
+    public readonly ConcurrentQueue<string> RecentDetectedTexts = new();
+    private const int MaxLogQueue = 25;
+
     private int frameCounter = 0;
     private const int ThrottleFrames = 6;
 
@@ -54,6 +58,16 @@ public class QuestJournalWatcher : IDisposable
         lock (translatedSet)
         {
             translatedSet.Clear();
+        }
+        while (RecentDetectedTexts.TryDequeue(out _)) { }
+    }
+
+    private void AddDiagnosticLog(string entry)
+    {
+        RecentDetectedTexts.Enqueue(entry);
+        while (RecentDetectedTexts.Count > MaxLogQueue)
+        {
+            RecentDetectedTexts.TryDequeue(out _);
         }
     }
 
@@ -180,7 +194,7 @@ public class QuestJournalWatcher : IDisposable
 
     private unsafe void ProcessNodeTree(AtkResNode* node, HashSet<nint> visited, int depth = 0)
     {
-        if (node == null || depth > 14) return;
+        if (node == null || depth > 16) return;
         if (!visited.Add((nint)node)) return;
 
         if (node->Type == NodeType.Text)
@@ -197,10 +211,24 @@ public class QuestJournalWatcher : IDisposable
                 {
                     ProcessNodeTree(compNode->Component->AtkResNode, visited, depth + 1);
                 }
+
+                // 檢查 ListItemRenderer 的專有文字節點
+                try
+                {
+                    var renderer = (AtkComponentListItemRenderer*)compNode->Component;
+                    if (renderer != null && renderer->ButtonTextNode != null)
+                    {
+                        TryProcessTextNode(renderer->ButtonTextNode);
+                    }
+                }
+                catch
+                {
+                    // 忽略非 ListItemRenderer 型別
+                }
             }
         }
 
-        // 雙向完整覆蓋子兄弟鏈表（FFXIV 的 ChildNode 常指向末尾，須雙向走訪）
+        // 雙向完整覆蓋子兄弟鏈表
         var child = node->ChildNode;
         if (child != null)
         {
@@ -217,7 +245,7 @@ public class QuestJournalWatcher : IDisposable
 
     private unsafe void ProcessUldManager(AtkUldManager* uldManager, HashSet<nint> visited, int depth = 0)
     {
-        if (uldManager == null || depth > 12) return;
+        if (uldManager == null || depth > 14) return;
         if (!visited.Add((nint)uldManager)) return;
 
         // 1. 遍歷 RootNode
@@ -297,6 +325,7 @@ public class QuestJournalWatcher : IDisposable
                     {
                         translatedSet.Add(cachedTranslation);
                     }
+                    AddDiagnosticLog($"[已套用] {cleanText.Substring(0, Math.Min(20, cleanText.Length))}... -> {cachedTranslation.Substring(0, Math.Min(20, cachedTranslation.Length))}...");
                 }
                 catch (Exception ex)
                 {
@@ -309,6 +338,7 @@ public class QuestJournalWatcher : IDisposable
         // 若無快取且尚未送翻，啟動背景非同步翻譯
         if (pendingTranslations.TryAdd(cleanText, true))
         {
+            AddDiagnosticLog($"[翻譯中] {cleanText.Substring(0, Math.Min(30, cleanText.Length))}...");
             RequestTranslationAsync(cleanText);
         }
     }
@@ -324,6 +354,7 @@ public class QuestJournalWatcher : IDisposable
                 // 檢查是否為錯誤代碼（避免寫入介面）
                 if (IsTranslationError(rawTranslated))
                 {
+                    AddDiagnosticLog($"[翻譯錯誤] {cleanText.Substring(0, Math.Min(15, cleanText.Length))}: {rawTranslated}");
                     return;
                 }
 
@@ -342,11 +373,13 @@ public class QuestJournalWatcher : IDisposable
                     {
                         translatedSet.Add(finalResult);
                     }
+                    AddDiagnosticLog($"[翻譯完成] {cleanText.Substring(0, Math.Min(15, cleanText.Length))} -> {finalResult.Substring(0, Math.Min(15, finalResult.Length))}");
                 }
             }
             catch (Exception ex)
             {
                 log.Warning(ex, $"任務說明翻譯失敗: {cleanText}");
+                AddDiagnosticLog($"[異常] {ex.Message}");
             }
             finally
             {
