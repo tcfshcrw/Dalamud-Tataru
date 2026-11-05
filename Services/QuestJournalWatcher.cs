@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading.Tasks;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.UI;
@@ -65,6 +66,8 @@ public class QuestJournalWatcher : IDisposable
 
         try
         {
+            var visited = new HashSet<nint>();
+
             // 1. 任務詳細說明欄 (JournalDetail)
             if (config.TranslateJournalDetail)
             {
@@ -83,14 +86,14 @@ public class QuestJournalWatcher : IDisposable
 
                         if (detail->JournalCanvasNode != null)
                         {
-                            ProcessUldManager(&detail->JournalCanvasNode->UldManager);
+                            ProcessUldManager(&detail->JournalCanvasNode->UldManager, visited);
                             if (detail->JournalCanvasNode->AtkResNode != null)
                             {
-                                ProcessNodeTree(detail->JournalCanvasNode->AtkResNode);
+                                ProcessNodeTree(detail->JournalCanvasNode->AtkResNode, visited);
                             }
                         }
                     }
-                });
+                }, visited);
             }
 
             // 2. 接取任務確認視窗 (JournalAccept)
@@ -106,14 +109,14 @@ public class QuestJournalWatcher : IDisposable
 
                         if (accept->JournalCanvas != null)
                         {
-                            ProcessUldManager(&accept->JournalCanvas->UldManager);
+                            ProcessUldManager(&accept->JournalCanvas->UldManager, visited);
                             if (accept->JournalCanvas->AtkResNode != null)
                             {
-                                ProcessNodeTree(accept->JournalCanvas->AtkResNode);
+                                ProcessNodeTree(accept->JournalCanvas->AtkResNode, visited);
                             }
                         }
                     }
-                });
+                }, visited);
             }
 
             // 3. 回報完成任務視窗 (JournalResult)
@@ -129,14 +132,14 @@ public class QuestJournalWatcher : IDisposable
 
                         if (result->AtkComponentJournalCanvas268 != null)
                         {
-                            ProcessUldManager(&result->AtkComponentJournalCanvas268->UldManager);
+                            ProcessUldManager(&result->AtkComponentJournalCanvas268->UldManager, visited);
                             if (result->AtkComponentJournalCanvas268->AtkResNode != null)
                             {
-                                ProcessNodeTree(result->AtkComponentJournalCanvas268->AtkResNode);
+                                ProcessNodeTree(result->AtkComponentJournalCanvas268->AtkResNode, visited);
                             }
                         }
                     }
-                });
+                }, visited);
             }
         }
         catch (Exception ex)
@@ -147,7 +150,7 @@ public class QuestJournalWatcher : IDisposable
 
     private unsafe delegate void AddonFieldProcessor(AtkUnitBase* addon);
 
-    private unsafe void ProcessAddon(string addonName, AddonFieldProcessor? specificFieldProcessor = null)
+    private unsafe void ProcessAddon(string addonName, AddonFieldProcessor? specificFieldProcessor, HashSet<nint> visited)
     {
         var addonPtr = gameGui.GetAddonByName(addonName);
         if (addonPtr.IsNull) return;
@@ -165,19 +168,20 @@ public class QuestJournalWatcher : IDisposable
             // 忽略個別結構欄位異常
         }
 
-        // 2. 深度遍歷 ULD 樹（自動深入 JournalCanvas 及所有文字元件）
-        ProcessUldManager(&addon->UldManager);
+        // 2. 深度遍歷 ULD 樹（包括 RootNode、NodeList）
+        ProcessUldManager(&addon->UldManager, visited);
 
         // 3. 遍歷整個節點樹鏈表 (RootNode -> ChildNode -> NextSiblingNode)
         if (addon->RootNode != null)
         {
-            ProcessNodeTree(addon->RootNode);
+            ProcessNodeTree(addon->RootNode, visited);
         }
     }
 
-    private unsafe void ProcessNodeTree(AtkResNode* node, int depth = 0)
+    private unsafe void ProcessNodeTree(AtkResNode* node, HashSet<nint> visited, int depth = 0)
     {
-        if (node == null || depth > 10) return;
+        if (node == null || depth > 12) return;
+        if (!visited.Add((nint)node)) return;
 
         if (node->Type == NodeType.Text)
         {
@@ -188,42 +192,39 @@ public class QuestJournalWatcher : IDisposable
             var compNode = (AtkComponentNode*)node;
             if (compNode->Component != null)
             {
-                ProcessUldManager(&compNode->Component->UldManager, depth + 1);
+                ProcessUldManager(&compNode->Component->UldManager, visited, depth + 1);
+                if (compNode->Component->AtkResNode != null)
+                {
+                    ProcessNodeTree(compNode->Component->AtkResNode, visited, depth + 1);
+                }
             }
         }
 
         for (var child = node->ChildNode; child != null; child = child->NextSiblingNode)
         {
-            ProcessNodeTree(child, depth + 1);
+            ProcessNodeTree(child, visited, depth + 1);
         }
     }
 
-    private unsafe void ProcessUldManager(AtkUldManager* uldManager, int depth = 0)
+    private unsafe void ProcessUldManager(AtkUldManager* uldManager, HashSet<nint> visited, int depth = 0)
     {
-        if (uldManager == null || uldManager->NodeList == null || depth > 8) return;
+        if (uldManager == null || depth > 10) return;
+        if (!visited.Add((nint)uldManager)) return;
 
-        for (var i = 0; i < uldManager->NodeListCount; i++)
+        // 1. 遍歷 RootNode
+        if (uldManager->RootNode != null)
         {
-            var node = uldManager->NodeList[i];
-            if (node == null) continue;
+            ProcessNodeTree(uldManager->RootNode, visited, depth + 1);
+        }
 
-            if (node->Type == NodeType.Text)
+        // 2. 遍歷 NodeList
+        if (uldManager->NodeList != null)
+        {
+            for (var i = 0; i < uldManager->NodeListCount; i++)
             {
-                var textNode = (AtkTextNode*)node;
-                TryProcessTextNode(textNode);
-            }
-            else if (node->Type == NodeType.Component)
-            {
-                var compNode = (AtkComponentNode*)node;
-                if (compNode->Component != null)
-                {
-                    ProcessUldManager(&compNode->Component->UldManager, depth + 1);
-                }
-            }
-
-            if (node->ChildNode != null)
-            {
-                ProcessNodeTree(node->ChildNode, depth + 1);
+                var node = uldManager->NodeList[i];
+                if (node == null) continue;
+                ProcessNodeTree(node, visited, depth + 1);
             }
         }
     }
@@ -242,25 +243,34 @@ public class QuestJournalWatcher : IDisposable
             return;
         }
 
-        var trimmed = currentText.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed)) return;
+        if (string.IsNullOrWhiteSpace(currentText)) return;
+
+        // 清理 FFXIV SeString 控制碼（\u0002 ... \u0003）以取得純文字
+        var cleanText = CleanSeStringText(currentText);
+        if (string.IsNullOrWhiteSpace(cleanText)) return;
 
         // 檢查是否已經是我們替換過的譯文
         lock (translatedSet)
         {
-            if (translatedSet.Contains(trimmed)) return;
+            if (translatedSet.Contains(cleanText) || translatedSet.Contains(currentText)) return;
+        }
+
+        // 檢查是否為「總結歷程/冒險錄」且用戶未開啟該選項
+        if (!config.TranslateJournalRecap && IsQuestRecapText(cleanText))
+        {
+            return;
         }
 
         // 過濾系統按鈕、純數字、等級等不需翻譯的標籤
-        if (IsIgnoredOrSystemLabel(trimmed)) return;
+        if (IsIgnoredOrSystemLabel(cleanText)) return;
 
         // 確認含有可翻譯字元 (日文假名、漢字、或英文字詞)
-        if (!ContainsTranslatableCharacters(trimmed)) return;
+        if (!ContainsTranslatableCharacters(cleanText)) return;
 
         // 若快取中已有對應譯文，直接在主執行緒安全執行 SetText
-        if (translationCache.TryGetValue(trimmed, out var cachedTranslation))
+        if (translationCache.TryGetValue(cleanText, out var cachedTranslation))
         {
-            if (trimmed != cachedTranslation)
+            if (currentText != cachedTranslation && cleanText != cachedTranslation)
             {
                 try
                 {
@@ -288,19 +298,19 @@ public class QuestJournalWatcher : IDisposable
         }
 
         // 若無快取且尚未送翻，啟動背景非同步翻譯
-        if (pendingTranslations.TryAdd(trimmed, true))
+        if (pendingTranslations.TryAdd(cleanText, true))
         {
-            RequestTranslationAsync(trimmed);
+            RequestTranslationAsync(cleanText);
         }
     }
 
-    private void RequestTranslationAsync(string trimmed)
+    private void RequestTranslationAsync(string cleanText)
     {
         Task.Run(async () =>
         {
             try
             {
-                var (_, rawTranslated) = await translator.TranslateAsync(string.Empty, trimmed);
+                var (_, rawTranslated) = await translator.TranslateAsync(string.Empty, cleanText);
 
                 // 檢查是否為錯誤代碼（避免寫入介面）
                 if (IsTranslationError(rawTranslated))
@@ -318,7 +328,7 @@ public class QuestJournalWatcher : IDisposable
                         ? GlyphFolder.Fold(translated, config.CustomGlyphEntries)
                         : translated;
 
-                    translationCache[trimmed] = finalResult;
+                    translationCache[cleanText] = finalResult;
                     lock (translatedSet)
                     {
                         translatedSet.Add(finalResult);
@@ -327,13 +337,48 @@ public class QuestJournalWatcher : IDisposable
             }
             catch (Exception ex)
             {
-                log.Warning(ex, $"任務說明翻譯失敗: {trimmed}");
+                log.Warning(ex, $"任務說明翻譯失敗: {cleanText}");
             }
             finally
             {
-                pendingTranslations.TryRemove(trimmed, out _);
+                pendingTranslations.TryRemove(cleanText, out _);
             }
         });
+    }
+
+    private static string CleanSeStringText(string raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return string.Empty;
+
+        // 移除 FFXIV SeString 二進位控制字符塊 (\u0002 ... \u0003)
+        var sb = new StringBuilder(raw.Length);
+        bool inControlSequence = false;
+        foreach (var c in raw)
+        {
+            if (c == '\u0002')
+            {
+                inControlSequence = true;
+                continue;
+            }
+            if (inControlSequence)
+            {
+                if (c == '\u0003')
+                {
+                    inControlSequence = false;
+                }
+                continue;
+            }
+            sb.Append(c);
+        }
+
+        return sb.ToString().Trim();
+    }
+
+    private static bool IsQuestRecapText(string text)
+    {
+        return text.StartsWith("前回までの冒険録", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("前回までの冒険録")
+            || text.StartsWith("The story thus far", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsTranslationError(string? text)

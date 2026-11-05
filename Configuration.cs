@@ -93,6 +93,7 @@ public class Configuration : IPluginConfiguration
     public bool TranslateJournalDetail { get; set; } = true;
     public bool TranslateJournalAccept { get; set; } = true;
     public bool TranslateJournalResult { get; set; } = true;
+    public bool TranslateJournalRecap { get; set; } = true;
     public bool QuestEnableGlyphFolding { get; set; } = true;
 
     // UI Overlay Settings

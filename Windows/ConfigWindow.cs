@@ -903,6 +903,15 @@ public class ConfigWindow : Window
         ImGui.SameLine();
         ImGui.TextDisabled("(點擊日誌或地圖任務時彈出的任務詳細面板)");
 
+        var jRecap = config.TranslateJournalRecap;
+        if (ImGui.Checkbox("翻譯任務總結歷程 (前回までの冒険録 / 故事回顧)", ref jRecap))
+        {
+            config.TranslateJournalRecap = jRecap;
+            config.Save();
+        }
+        ImGui.SameLine();
+        ImGui.TextDisabled("(任務詳細面板中的「前回までの冒険録」與當前階段歷程回顧長文)");
+
         var jAccept = config.TranslateJournalAccept;
         if (ImGui.Checkbox("接取任務確認視窗 (JournalAccept)", ref jAccept))
         {
