@@ -30,6 +30,10 @@ public class ConfigWindow : Window
     private readonly ChatHistoryWindow? chatHistoryWindow;
     private readonly IFontHandle? fontHandle;
     private readonly QuestJournalWatcher? questJournalWatcher;
+    private readonly JournalInspector? journalInspector;
+    private List<JournalNodeInspectionInfo>? lastInspectionResults = null;
+    private string inspectorStatusMsg = string.Empty;
+    private string inspectorFilter = string.Empty;
 
     private bool showApiKey = false;
     private string testStatus = string.Empty;
@@ -97,7 +101,7 @@ public class ConfigWindow : Window
         "自訂模型 (Custom)"
     };
 
-    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, DialogueReplaceOverlayWindow replaceOverlayWindow, DialogueWatcher dialogueWatcher, GlossaryManager glossary, GlossaryEditorWindow? glossaryEditorWindow = null, ChatTranslationService? chatTranslationService = null, ChatHistoryWindow? chatHistoryWindow = null, IFontHandle? fontHandle = null, QuestJournalWatcher? questJournalWatcher = null)
+    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, DialogueReplaceOverlayWindow replaceOverlayWindow, DialogueWatcher dialogueWatcher, GlossaryManager glossary, GlossaryEditorWindow? glossaryEditorWindow = null, ChatTranslationService? chatTranslationService = null, ChatHistoryWindow? chatHistoryWindow = null, IFontHandle? fontHandle = null, QuestJournalWatcher? questJournalWatcher = null, JournalInspector? journalInspector = null)
         : base("Tataru Native Translator 設定###TataruConfigWindow")
     {
         this.config = config;
@@ -114,6 +118,7 @@ public class ConfigWindow : Window
         this.chatHistoryWindow = chatHistoryWindow;
         this.fontHandle = fontHandle;
         this.questJournalWatcher = questJournalWatcher;
+        this.journalInspector = journalInspector;
 
         Size = new Vector2(760, 680);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -164,6 +169,12 @@ public class ConfigWindow : Window
                 if (ImGui.BeginTabItem("字幕與視窗外觀"))
                 {
                     DrawOverlaySettings();
+                    ImGui.EndTabItem();
+                }
+
+                if (ImGui.BeginTabItem("任務除錯 (Inspector)"))
+                {
+                    DrawJournalInspector();
                     ImGui.EndTabItem();
                 }
 
@@ -2835,6 +2846,129 @@ public class ConfigWindow : Window
         }
         config.Save();
         glyphTestOutput = GlyphFolder.Fold(glyphTestInput, config.CustomGlyphEntries);
+    }
+
+
+    private void DrawJournalInspector()
+    {
+        ImGui.Spacing();
+        ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "任務介面節點深度檢查器 (Journal Inspector)");
+        ImGui.TextDisabled("此工具可深度掃描並列出當前遊戲畫面上所有開啟的任務視窗 (JournalDetail、Journal、JournalAccept 等) 中的每個文字節點。");
+        ImGui.TextDisabled("請在遊戲中打開任務詳細視窗或任務日誌，然後點擊下方「立即深度掃描」按鈕。");
+
+        ImGui.Spacing();
+        if (ImGui.Button("🔍 立即深度掃描當前任務視窗 (Deep Scan)", new Vector2(280, 32)))
+        {
+            if (journalInspector != null)
+            {
+                lastInspectionResults = journalInspector.ScanAllJournalAddons();
+                inspectorStatusMsg = $"掃描完成！共偵測到 {lastInspectionResults.Count} 個文字節點。";
+            }
+            else
+            {
+                inspectorStatusMsg = "無法執行掃描：JournalInspector 服務尚未就緒。";
+            }
+        }
+
+        if (lastInspectionResults != null && lastInspectionResults.Count > 0)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button("📋 複製完整檢查報告 (Copy Report)", new Vector2(220, 32)))
+            {
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"=== Tataru Journal Inspector Report ({DateTime.Now}) ===");
+                sb.AppendLine($"Total Nodes: {lastInspectionResults.Count}");
+                sb.AppendLine("--------------------------------------------------");
+                foreach (var info in lastInspectionResults)
+                {
+                    sb.AppendLine($"[Addon: {info.AddonName}] NodeId={info.NodeId} | Path={info.ComponentType}");
+                    sb.AppendLine($"  RawText (Len={info.Length}): '{info.RawText}'");
+                    sb.AppendLine($"  CleanText: '{info.CleanText}'");
+                    sb.AppendLine($"  IsRecap={info.IsRecap} | HasTranslatable={info.HasTranslatableChars} | IsIgnored={info.IsIgnoredLabel}");
+                    sb.AppendLine();
+                }
+                ImGui.SetClipboardText(sb.ToString());
+                inspectorStatusMsg = "已成功複製完整節點報告至剪貼簿！可直接貼給開發者排查。";
+            }
+
+            ImGui.SameLine();
+            if (ImGui.Button("清空結果", new Vector2(80, 32)))
+            {
+                lastInspectionResults = null;
+                inspectorStatusMsg = string.Empty;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(inspectorStatusMsg))
+        {
+            ImGui.TextColored(new Vector4(0.4f, 1.0f, 0.5f, 1.0f), inspectorStatusMsg);
+        }
+
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        if (lastInspectionResults == null)
+        {
+            ImGui.TextDisabled("尚未進行掃描。請先在遊戲中開啟任務日誌或任務詳細說明欄，再點擊上方掃描按鈕。");
+            return;
+        }
+
+        if (lastInspectionResults.Count == 0)
+        {
+            ImGui.TextColored(new Vector4(1.0f, 0.4f, 0.4f, 1.0f), "未在畫面上偵測到任何開啟中的任務視窗 (JournalDetail / Journal / JournalAccept)。");
+            return;
+        }
+
+        ImGui.InputTextWithHint("##InspectorFilter", "篩選文字內容或 Addon...", ref inspectorFilter, 100);
+        ImGui.Spacing();
+
+        ImGui.BeginChild("##InspectorTableContainer", new Vector2(0, 0), true);
+
+        int index = 1;
+        foreach (var info in lastInspectionResults)
+        {
+            if (!string.IsNullOrEmpty(inspectorFilter) &&
+                !info.RawText.Contains(inspectorFilter, StringComparison.OrdinalIgnoreCase) &&
+                !info.AddonName.Contains(inspectorFilter, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            ImGui.PushID($"Node_{index}_{info.NodePointer}");
+
+            bool isHeaderOpen = ImGui.TreeNodeEx($"#{index} [{info.AddonName}] NodeId: {info.NodeId} (長度: {info.Length})", ImGuiTreeNodeFlags.DefaultOpen);
+            
+            ImGui.SameLine(ImGui.GetWindowWidth() - 170);
+            if (ImGui.SmallButton("🧪 寫入測試文字"))
+            {
+                bool success = JournalInspector.TestDirectSetText(info.NodePointer, "【測試替換】");
+                inspectorStatusMsg = success ? $"已向節點 {info.NodeId} 寫入測試文字！請查看遊戲畫面是否有變。" : "寫入測試文字失敗。";
+            }
+
+            if (isHeaderOpen)
+            {
+                ImGui.TextDisabled($"所屬路徑: {info.ComponentType}");
+                ImGui.TextDisabled($"標記狀態: 故事回顧(IsRecap)={info.IsRecap} | 含有翻譯字元={info.HasTranslatableChars} | 系統標籤={info.IsIgnoredLabel}");
+
+                ImGui.TextColored(new Vector4(1.0f, 0.9f, 0.5f, 1.0f), "原始文字 (Raw Text):");
+                ImGui.Indent(10f);
+                ImGui.TextWrapped(info.RawText);
+                ImGui.Unindent(10f);
+
+                ImGui.TextColored(new Vector4(0.5f, 0.9f, 1.0f, 1.0f), "清理後文字 (Clean Text):");
+                ImGui.Indent(10f);
+                ImGui.TextWrapped(info.CleanText);
+                ImGui.Unindent(10f);
+
+                ImGui.TreePop();
+            }
+
+            ImGui.Separator();
+            ImGui.PopID();
+            index++;
+        }
+
+        ImGui.EndChild();
     }
 
 }

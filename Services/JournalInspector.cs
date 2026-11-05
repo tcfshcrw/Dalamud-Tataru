@@ -1,0 +1,236 @@
+using System;
+using System.Collections.Generic;
+using System.Text;
+using Dalamud.Plugin.Services;
+using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Component.GUI;
+
+namespace DalamudTataru.Services;
+
+public class JournalNodeInspectionInfo
+{
+    public string AddonName { get; set; } = string.Empty;
+    public uint NodeId { get; set; }
+    public string NodeType { get; set; } = string.Empty;
+    public string ComponentType { get; set; } = string.Empty;
+    public string RawText { get; set; } = string.Empty;
+    public string CleanText { get; set; } = string.Empty;
+    public int Length { get; set; }
+    public bool HasTranslatableChars { get; set; }
+    public bool IsIgnoredLabel { get; set; }
+    public bool IsRecap { get; set; }
+    public string CachedTranslation { get; set; } = string.Empty;
+    public nint NodePointer { get; set; }
+}
+
+public class JournalInspector
+{
+    private readonly IGameGui gameGui;
+    private readonly IPluginLog log;
+    private readonly Configuration config;
+
+    private static readonly string[] TargetAddons = new[]
+    {
+        "JournalDetail",
+        "Journal",
+        "JournalAccept",
+        "JournalResult",
+        "QuestTodoList",
+        "ScenarioTree"
+    };
+
+    public JournalInspector(IGameGui gameGui, IPluginLog log, Configuration config)
+    {
+        this.gameGui = gameGui;
+        this.log = log;
+        this.config = config;
+    }
+
+    public unsafe List<JournalNodeInspectionInfo> ScanAllJournalAddons()
+    {
+        var results = new List<JournalNodeInspectionInfo>();
+        var visitedNodes = new HashSet<nint>();
+        var visitedUlds = new HashSet<nint>();
+
+        foreach (var addonName in TargetAddons)
+        {
+            var addonPtr = gameGui.GetAddonByName(addonName);
+            if (addonPtr.IsNull) continue;
+
+            var addon = (AtkUnitBase*)addonPtr.Address;
+            if (addon == null || !addon->IsVisible) continue;
+
+            // 1. 深度遍歷 addon->UldManager
+            ScanUldManager(&addon->UldManager, addonName, results, visitedNodes, visitedUlds);
+
+            // 2. 深度遍歷 addon->RootNode
+            if (addon->RootNode != null)
+            {
+                ScanResNode(addon->RootNode, addonName, string.Empty, results, visitedNodes, visitedUlds);
+            }
+        }
+
+        return results;
+    }
+
+    private unsafe void ScanUldManager(AtkUldManager* uldManager, string addonName, List<JournalNodeInspectionInfo> results, HashSet<nint> visitedNodes, HashSet<nint> visitedUlds, int depth = 0)
+    {
+        if (uldManager == null || depth > 16) return;
+        if (!visitedUlds.Add((nint)uldManager)) return;
+
+        if (uldManager->RootNode != null)
+        {
+            ScanResNode(uldManager->RootNode, addonName, "UldRoot", results, visitedNodes, visitedUlds, depth + 1);
+        }
+
+        if (uldManager->NodeList != null)
+        {
+            for (var i = 0; i < uldManager->NodeListCount; i++)
+            {
+                var node = uldManager->NodeList[i];
+                if (node == null) continue;
+                ScanResNode(node, addonName, $"NodeList[{i}]", results, visitedNodes, visitedUlds, depth + 1);
+            }
+        }
+    }
+
+    private unsafe void ScanResNode(AtkResNode* node, string addonName, string parentInfo, List<JournalNodeInspectionInfo> results, HashSet<nint> visitedNodes, HashSet<nint> visitedUlds, int depth = 0)
+    {
+        if (node == null || depth > 18) return;
+        if (!visitedNodes.Add((nint)node)) return;
+
+        if (node->Type == NodeType.Text)
+        {
+            var textNode = (AtkTextNode*)node;
+            string raw = string.Empty;
+            try
+            {
+                raw = textNode->NodeText.ToString();
+            }
+            catch { }
+
+            if (!string.IsNullOrEmpty(raw))
+            {
+                var clean = CleanSeStringText(raw);
+                results.Add(new JournalNodeInspectionInfo
+                {
+                    AddonName = addonName,
+                    NodeId = node->NodeId,
+                    NodeType = "TextNode",
+                    ComponentType = parentInfo,
+                    RawText = raw,
+                    CleanText = clean,
+                    Length = raw.Length,
+                    HasTranslatableChars = ContainsTranslatableCharacters(clean),
+                    IsIgnoredLabel = IsIgnoredOrSystemLabel(clean),
+                    IsRecap = IsQuestRecapText(clean),
+                    NodePointer = (nint)node
+                });
+            }
+        }
+        else if (node->Type == NodeType.Component)
+        {
+            var compNode = (AtkComponentNode*)node;
+            if (compNode->Component != null)
+            {
+                var compType = compNode->Component->GetComponentType().ToString();
+
+                ScanUldManager(&compNode->Component->UldManager, addonName, results, visitedNodes, visitedUlds, depth + 1);
+                if (compNode->Component->AtkResNode != null)
+                {
+                    ScanResNode(compNode->Component->AtkResNode, addonName, $"{parentInfo}->CompRes({compType})", results, visitedNodes, visitedUlds, depth + 1);
+                }
+
+                // 嘗試檢查 ListItemRenderer 的 ButtonTextNode
+                try
+                {
+                    var renderer = (AtkComponentListItemRenderer*)compNode->Component;
+                    if (renderer != null && renderer->ButtonTextNode != null)
+                    {
+                        ScanResNode((AtkResNode*)renderer->ButtonTextNode, addonName, $"{parentInfo}->RendererBtnText", results, visitedNodes, visitedUlds, depth + 1);
+                    }
+                }
+                catch { }
+            }
+        }
+
+        // 雙向兄弟鏈表走訪
+        var child = node->ChildNode;
+        if (child != null)
+        {
+            for (var curr = child; curr != null; curr = curr->NextSiblingNode)
+            {
+                ScanResNode(curr, addonName, parentInfo, results, visitedNodes, visitedUlds, depth + 1);
+            }
+            for (var curr = child->PrevSiblingNode; curr != null; curr = curr->PrevSiblingNode)
+            {
+                ScanResNode(curr, addonName, parentInfo, results, visitedNodes, visitedUlds, depth + 1);
+            }
+        }
+    }
+
+    public static unsafe bool TestDirectSetText(nint nodePtr, string newText)
+    {
+        if (nodePtr == 0) return false;
+        try
+        {
+            var textNode = (AtkTextNode*)nodePtr;
+            if (textNode->Type != NodeType.Text) return false;
+            textNode->SetText(newText);
+            try { textNode->ResizeNodeForCurrentText(); } catch { }
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string CleanSeStringText(string raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return string.Empty;
+
+        var sb = new StringBuilder(raw.Length);
+        foreach (var c in raw)
+        {
+            if (c == '\n' || c == '\r' || c == '\t')
+            {
+                sb.Append(c);
+                continue;
+            }
+            if (c < 0x20 || c == 0x7F) continue;
+            sb.Append(c);
+        }
+        return sb.ToString().Trim();
+    }
+
+    private static bool IsQuestRecapText(string text)
+    {
+        return text.StartsWith("前回までの冒険録", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("前回までの冒険録")
+            || text.StartsWith("The story thus far", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsIgnoredOrSystemLabel(string text)
+    {
+        if (int.TryParse(text.Replace(",", "").Replace(".", ""), out _)) return true;
+        if (text.StartsWith("Lv", StringComparison.OrdinalIgnoreCase)) return true;
+        if (text.Contains('/') && text.Length <= 7) return true;
+        if (text.Length <= 1) return true;
+        return false;
+    }
+
+    private static bool ContainsTranslatableCharacters(string text)
+    {
+        foreach (var c in text)
+        {
+            if ((c >= 0x3040 && c <= 0x309F) ||
+                (c >= 0x30A0 && c <= 0x30FF) ||
+                (c >= 0x4E00 && c <= 0x9FFF))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+}

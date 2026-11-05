@@ -48,6 +48,7 @@ public class Plugin : IDalamudPlugin
     private readonly ChatTranslationService chatTranslationService;
     private readonly DialogueWatcher dialogueWatcher;
     private readonly QuestJournalWatcher questJournalWatcher;
+    private readonly JournalInspector journalInspector;
     private readonly SubtitleOverlayWindow overlayWindow;
     private readonly DialogueReplaceOverlayWindow replaceOverlayWindow;
     private readonly GlossaryEditorWindow glossaryEditorWindow;
@@ -106,12 +107,13 @@ public class Plugin : IDalamudPlugin
 
         GlyphFolder.Initialize(DataManager, PluginLog);
         questJournalWatcher = new QuestJournalWatcher(Framework, GameGui, PluginLog, Configuration, translator);
+        journalInspector = new JournalInspector(GameGui, PluginLog, Configuration);
         chatTranslationService = new ChatTranslationService(Configuration, translator, ChatGui, ClientState, Condition, PluginLog);
         overlayWindow = new SubtitleOverlayWindow(Configuration, CjkFontHandle);
         replaceOverlayWindow = new DialogueReplaceOverlayWindow(Configuration, dialogueWatcher, CjkFontHandle);
         glossaryEditorWindow = new GlossaryEditorWindow(Configuration, glossaryManager, CjkFontHandle);
         chatHistoryWindow = new ChatHistoryWindow(Configuration, chatTranslationService, CjkFontHandle);
-        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, replaceOverlayWindow, dialogueWatcher, glossaryManager, glossaryEditorWindow, chatTranslationService, chatHistoryWindow, CjkFontHandle, questJournalWatcher);
+        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, replaceOverlayWindow, dialogueWatcher, glossaryManager, glossaryEditorWindow, chatTranslationService, chatHistoryWindow, CjkFontHandle, questJournalWatcher, journalInspector);
 
         WindowSystem.AddWindow(overlayWindow);
         WindowSystem.AddWindow(replaceOverlayWindow);
