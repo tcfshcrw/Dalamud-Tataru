@@ -561,6 +561,54 @@ public class GeminiTranslator : IDisposable
         }
     }
 
+    public async Task<(string speaker, string text)> TranslateQuestTextAsync(string text, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return (string.Empty, string.Empty);
+        }
+
+        var (_, maskedText) = PlayerNameHelper.Mask(string.Empty, text, config);
+        maskedText = glossary.ApplyPreTranslation(maskedText, config.TargetLang);
+
+        // 任務翻譯引擎僅限 LM Studio / 有道 / Google Translate
+        var engine = config.PrimaryEngine;
+        if (engine == TranslationEngine.Gemini)
+        {
+            // 若主引擎為 Gemini，則任務自動切換至有道或 Google
+            engine = TranslationEngine.Youdao;
+        }
+
+        var cacheKey = $"QUEST::{engine}::{config.SourceLang}::{config.TargetLang}::{text}";
+        if (cache.TryGetValue(cacheKey, out var cached))
+        {
+            return cached;
+        }
+
+        (string s, string t) result;
+        switch (engine)
+        {
+            case TranslationEngine.LmStudio:
+                result = await TranslateWithLmStudioPrimaryAsync(string.Empty, maskedText, cancellationToken);
+                break;
+            case TranslationEngine.Google:
+                result = await TranslateWithGooglePrimaryAsync(string.Empty, maskedText, cancellationToken);
+                break;
+            case TranslationEngine.Youdao:
+            default:
+                result = await TranslateWithYoudaoPrimaryAsync(string.Empty, maskedText, cancellationToken);
+                break;
+        }
+
+        result = (string.Empty, PlayerNameHelper.Unmask(result.t, config));
+
+        if (!IsAnyTranslationError(result.t))
+        {
+            cache[cacheKey] = result;
+        }
+        return result;
+    }
+
     public async Task<(string speaker, string text)> TranslateAsync(string speaker, string text, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text))

@@ -436,7 +436,7 @@ public class QuestJournalWatcher : IDisposable
                     return;
                 }
 
-                var (_, rawTranslated) = await translator.TranslateAsync(string.Empty, cleanText);
+                var (_, rawTranslated) = await translator.TranslateQuestTextAsync(cleanText);
 
                 // 檢查是否為錯誤代碼（避免寫入介面，並設定 5 秒重試冷卻）
                 if (IsTranslationError(rawTranslated))
