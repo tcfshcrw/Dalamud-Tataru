@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Dalamud.Configuration;
@@ -90,6 +90,7 @@ public class Configuration : IPluginConfiguration
     public bool TranslateSubtitle { get; set; } = true;
 
     // Quest Journal & Addon Translation Toggles
+    public bool QuestHoverTranslate { get; set; } = true;
     public bool TranslateJournalDetail { get; set; } = true;
     public bool TranslateJournalAccept { get; set; } = true;
     public bool TranslateJournalResult { get; set; } = true;

@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Plugin.Services;
+using DalamudTataru.Models;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
@@ -29,8 +31,11 @@ public class QuestJournalWatcher : IDisposable
     public readonly ConcurrentQueue<string> RecentDetectedTexts = new();
     private const int MaxLogQueue = 40;
 
-    private int frameCounter = 0;
-    private const int ThrottleFrames = 6;
+    // 滑鼠懸浮追蹤狀態
+    public QuestHoverInfo? CurrentHover { get; private set; }
+    private string? lastHoverCandidateClean = null;
+    private DateTime hoverStartTime = DateTime.MinValue;
+    private const int HoverDebounceMs = 80;
 
     private static readonly HashSet<string> IgnoredUiLabels = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -49,8 +54,6 @@ public class QuestJournalWatcher : IDisposable
         this.log = log;
         this.config = config;
         this.translator = translator;
-
-        this.framework.Update += OnFrameworkUpdate;
     }
 
     public int CacheCount => translationCache.Count;
@@ -64,19 +67,14 @@ public class QuestJournalWatcher : IDisposable
         {
             translatedSet.Clear();
         }
+        CurrentHover = null;
+        lastHoverCandidateClean = null;
         while (RecentDetectedTexts.TryDequeue(out _)) { }
     }
 
     public string GetNodeStatus(string cleanText, string rawText)
     {
         if (string.IsNullOrWhiteSpace(cleanText)) return "Empty";
-        lock (translatedSet)
-        {
-            if (translatedSet.Contains(cleanText) || translatedSet.Contains(rawText))
-            {
-                return "AlreadyReplaced (InTranslatedSet)";
-            }
-        }
         if (translationCache.TryGetValue(cleanText, out var cached))
         {
             return $"Cached -> '{cached.Substring(0, Math.Min(25, cached.Length))}'";
@@ -101,7 +99,7 @@ public class QuestJournalWatcher : IDisposable
         {
             return "Skipped (NoTranslatableChars)";
         }
-        return "Unprocessed";
+        return "ReadyForHover";
     }
 
     private void AddDiagnosticLog(string entry)
@@ -113,103 +111,210 @@ public class QuestJournalWatcher : IDisposable
         }
     }
 
-    private unsafe void OnFrameworkUpdate(IFramework _)
+    /// <summary>
+    /// 由 ImGui UI 繪製循環每幀呼叫，精準偵測滑鼠是否懸浮在任務內容文字上
+    /// </summary>
+    public unsafe void UpdateHover(Vector2 mousePos)
     {
-        if (!config.Enabled) return;
-
-        frameCounter++;
-        if (frameCounter % ThrottleFrames != 0) return;
+        if (!config.Enabled || !config.QuestHoverTranslate)
+        {
+            CurrentHover = null;
+            lastHoverCandidateClean = null;
+            return;
+        }
 
         try
         {
+            AtkTextNode* bestCandidate = null;
+            FFXIVClientStructs.FFXIV.Common.Math.Bounds bestBounds = default;
+            string bestClean = string.Empty;
+            string bestAddon = string.Empty;
+            float bestArea = float.MaxValue;
+
             var visited = new HashSet<nint>();
 
             // 1. 任務詳細說明欄 (JournalDetail)
             if (config.TranslateJournalDetail)
             {
-                ProcessAddon("JournalDetail", addon =>
+                CheckAddonHover("JournalDetail", mousePos, (addon, titleNode, titleText, canvasBounds) =>
                 {
                     var detail = (AddonJournalDetail*)addon;
                     if (detail != null)
                     {
-                        TryProcessTextNode(detail->DutyNameTextNode);
-                        TryProcessTextNode(detail->DutyLevelTextNode);
-                        TryProcessTextNode(detail->RewardsReceivedTextNode);
-                        TryProcessTextNode(detail->AtkTextNode2A8);
-                        TryProcessTextNode(detail->RequirementsNotMetLabelTextNode);
-                        TryProcessTextNode(detail->RequirementsNotMetTextNode);
-                        TryProcessTextNode(detail->AtkTextNode2C0);
+                        // 記錄標題文字節點 (嚴格跳過任務名稱，不翻譯任務名稱)
+                        if (detail->DutyNameTextNode != null)
+                        {
+                            titleNode = (nint)detail->DutyNameTextNode;
+                            titleText = ExtractCleanText(detail->DutyNameTextNode, "");
+                        }
 
+                        // 取得 JournalCanvas 畫布螢幕邊界
+                        if (detail->JournalCanvasNode != null && detail->JournalCanvasNode->AtkResNode != null)
+                        {
+                            FFXIVClientStructs.FFXIV.Common.Math.Bounds cb = default;
+                            detail->JournalCanvasNode->AtkResNode->GetBounds(&cb);
+                            if (cb.Width > 10 && cb.Height > 10)
+                            {
+                                canvasBounds = cb;
+                            }
+                        }
+
+                        // 掃描畫布內容
                         if (detail->JournalCanvasNode != null)
                         {
-                            ProcessJournalCanvas(detail->JournalCanvasNode, visited);
+                            ScanCanvasHover(detail->JournalCanvasNode, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, "JournalDetail");
                         }
+
+                        // 掃描其他內容文字節點
+                        CheckCandidateHover(detail->AtkTextNode2A8, titleNode, titleText, canvasBounds, mousePos, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, "JournalDetail");
+                        CheckCandidateHover(detail->RequirementsNotMetTextNode, titleNode, titleText, canvasBounds, mousePos, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, "JournalDetail");
+                        CheckCandidateHover(detail->AtkTextNode2C0, titleNode, titleText, canvasBounds, mousePos, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, "JournalDetail");
+
+                        // 深度掃描 ULD 樹中的其他內容
+                        ScanUldHover(&detail->AtkUnitBase.UldManager, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, "JournalDetail");
                     }
-                }, visited);
+                }, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon);
             }
 
             // 2. 接取任務確認視窗 (JournalAccept)
-            if (config.TranslateJournalAccept)
+            if (config.TranslateJournalAccept && bestCandidate == null)
             {
-                ProcessAddon("JournalAccept", addon =>
+                CheckAddonHover("JournalAccept", mousePos, (addon, titleNode, titleText, canvasBounds) =>
                 {
                     var accept = (AddonJournalAccept*)addon;
                     if (accept != null)
                     {
-                        TryProcessTextNode(accept->QuestTitleText);
-                        TryProcessTextNode(accept->JournalCanvasText);
+                        // 記錄標題文字節點 (不翻譯任務名稱)
+                        if (accept->QuestTitleText != null)
+                        {
+                            titleNode = (nint)accept->QuestTitleText;
+                            titleText = ExtractCleanText(accept->QuestTitleText, "");
+                        }
+
+                        // 取得 JournalCanvas 畫布邊界
+                        if (accept->JournalCanvas != null && accept->JournalCanvas->AtkResNode != null)
+                        {
+                            FFXIVClientStructs.FFXIV.Common.Math.Bounds cb = default;
+                            accept->JournalCanvas->AtkResNode->GetBounds(&cb);
+                            if (cb.Width > 10 && cb.Height > 10)
+                            {
+                                canvasBounds = cb;
+                            }
+                        }
+
+                        CheckCandidateHover(accept->JournalCanvasText, titleNode, titleText, canvasBounds, mousePos, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, "JournalAccept");
 
                         if (accept->JournalCanvas != null)
                         {
-                            ProcessJournalCanvas(accept->JournalCanvas, visited);
+                            ScanCanvasHover(accept->JournalCanvas, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, "JournalAccept");
                         }
+
+                        ScanUldHover(&accept->AtkUnitBase.UldManager, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, "JournalAccept");
                     }
-                }, visited);
+                }, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon);
             }
 
             // 3. 回報完成任務視窗 (JournalResult)
-            if (config.TranslateJournalResult)
+            if (config.TranslateJournalResult && bestCandidate == null)
             {
-                ProcessAddon("JournalResult", addon =>
+                CheckAddonHover("JournalResult", mousePos, (addon, titleNode, titleText, canvasBounds) =>
                 {
                     var result = (AddonJournalResult*)addon;
                     if (result != null)
                     {
-                        TryProcessTextNode(result->AtkTextNode250);
-                        TryProcessTextNode(result->AtkTextNode258);
+                        // AtkTextNode250 通常為任務名稱 (不翻譯任務名稱)
+                        if (result->AtkTextNode250 != null)
+                        {
+                            titleNode = (nint)result->AtkTextNode250;
+                            titleText = ExtractCleanText(result->AtkTextNode250, "");
+                        }
+
+                        if (result->AtkComponentJournalCanvas268 != null && result->AtkComponentJournalCanvas268->AtkResNode != null)
+                        {
+                            FFXIVClientStructs.FFXIV.Common.Math.Bounds cb = default;
+                            result->AtkComponentJournalCanvas268->AtkResNode->GetBounds(&cb);
+                            if (cb.Width > 10 && cb.Height > 10)
+                            {
+                                canvasBounds = cb;
+                            }
+                        }
+
+                        CheckCandidateHover(result->AtkTextNode258, titleNode, titleText, canvasBounds, mousePos, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, "JournalResult");
 
                         if (result->AtkComponentJournalCanvas268 != null)
                         {
-                            ProcessJournalCanvas(result->AtkComponentJournalCanvas268, visited);
+                            ScanCanvasHover(result->AtkComponentJournalCanvas268, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, "JournalResult");
+                        }
+
+                        ScanUldHover(&result->AtkUnitBase.UldManager, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, "JournalResult");
+                    }
+                }, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon);
+            }
+
+            // 處理最佳候選懸浮文字
+            if (bestCandidate != null && !string.IsNullOrWhiteSpace(bestClean))
+            {
+                if (lastHoverCandidateClean != bestClean)
+                {
+                    lastHoverCandidateClean = bestClean;
+                    hoverStartTime = DateTime.UtcNow;
+                }
+
+                // 防手抖抖動防護：懸停達指定毫秒後啟動非同步翻譯
+                bool debouncePassed = (DateTime.UtcNow - hoverStartTime).TotalMilliseconds >= HoverDebounceMs;
+                if (debouncePassed)
+                {
+                    if (!translationCache.ContainsKey(bestClean) &&
+                        !pendingTranslations.ContainsKey(bestClean) &&
+                        (!failedCooldowns.TryGetValue(bestClean, out var retryAfter) || DateTime.UtcNow >= retryAfter))
+                    {
+                        if (pendingTranslations.TryAdd(bestClean, true))
+                        {
+                            AddDiagnosticLog($"[懸停送翻] {bestClean.Substring(0, Math.Min(30, bestClean.Length))}...");
+                            RequestTranslationAsync(bestClean);
                         }
                     }
-                }, visited);
+                }
+
+                translationCache.TryGetValue(bestClean, out var cachedTranslation);
+                bool isPending = pendingTranslations.ContainsKey(bestClean);
+
+                CurrentHover = new QuestHoverInfo
+                {
+                    CleanText = bestClean,
+                    TranslatedText = cachedTranslation,
+                    IsPending = isPending,
+                    MousePos = mousePos,
+                    NodePos = new Vector2(Math.Min(bestBounds.Pos1.X, bestBounds.Pos2.X), Math.Min(bestBounds.Pos1.Y, bestBounds.Pos2.Y)),
+                    NodeSize = new Vector2(Math.Abs(bestBounds.Pos2.X - bestBounds.Pos1.X), Math.Abs(bestBounds.Pos2.Y - bestBounds.Pos1.Y)),
+                    NodePointer = (nint)bestCandidate,
+                    AddonName = bestAddon
+                };
+            }
+            else
+            {
+                lastHoverCandidateClean = null;
+                CurrentHover = null;
             }
         }
         catch (Exception ex)
         {
-            log.Debug(ex, "任務說明欄節點掃描時發生非致命例外。");
+            log.Debug(ex, "任務懸浮掃描時發生非致命例外。");
+            CurrentHover = null;
         }
     }
 
-    private unsafe void ProcessJournalCanvas(AtkComponentJournalCanvas* canvas, HashSet<nint> visited)
-    {
-        if (canvas == null) return;
+    private unsafe delegate void AddonHoverScanner(AtkUnitBase* addon, nint titleNode, string titleText, FFXIVClientStructs.FFXIV.Common.Math.Bounds canvasBounds);
 
-        ProcessUldManager(&canvas->UldManager, visited);
-        if (canvas->AtkResNode != null)
-        {
-            ProcessNodeTree(canvas->AtkResNode, visited);
-        }
-        if (canvas->OwnerNode != null)
-        {
-            ProcessNodeTree(&canvas->OwnerNode->AtkResNode, visited);
-        }
-    }
-
-    private unsafe delegate void AddonFieldProcessor(AtkUnitBase* addon);
-
-    private unsafe void ProcessAddon(string addonName, AddonFieldProcessor? specificFieldProcessor, HashSet<nint> visited)
+    private unsafe void CheckAddonHover(
+        string addonName,
+        Vector2 mousePos,
+        AddonHoverScanner scanner,
+        ref AtkTextNode* bestCandidate,
+        ref FFXIVClientStructs.FFXIV.Common.Math.Bounds bestBounds,
+        ref string bestClean,
+        ref float bestArea,
+        ref string bestAddon)
     {
         var addonPtr = gameGui.GetAddonByName(addonName);
         if (addonPtr.IsNull) return;
@@ -217,27 +322,96 @@ public class QuestJournalWatcher : IDisposable
         var addon = (AtkUnitBase*)addonPtr.Address;
         if (addon == null || !addon->IsVisible || !addon->IsReady) return;
 
-        // 1. 處理專有已知欄位
-        try
+        // 檢查滑鼠是否在該 Addon 的視窗邊界內，若不在則直接略過整個視窗
+        FFXIVClientStructs.FFXIV.Common.Math.Bounds winBounds = default;
+        addon->GetWindowBounds(&winBounds);
+        if (winBounds.Width <= 0 || winBounds.Height <= 0)
         {
-            specificFieldProcessor?.Invoke(addon);
+            addon->GetRootBounds(&winBounds);
         }
-        catch
+        if (winBounds.Width > 0 && winBounds.Height > 0)
         {
-            // 忽略個別結構欄位異常
+            if (!IsPointInside(winBounds, mousePos)) return;
         }
 
-        // 2. 深度遍歷 ULD 樹（包括 RootNode、NodeList）
-        ProcessUldManager(&addon->UldManager, visited);
+        scanner(addon, 0, string.Empty, default);
+    }
 
-        // 3. 遍歷整個節點樹
-        if (addon->RootNode != null)
+    private unsafe void ScanCanvasHover(
+        AtkComponentJournalCanvas* canvas,
+        nint titleNode,
+        string titleText,
+        FFXIVClientStructs.FFXIV.Common.Math.Bounds canvasBounds,
+        Vector2 mousePos,
+        HashSet<nint> visited,
+        ref AtkTextNode* bestCandidate,
+        ref FFXIVClientStructs.FFXIV.Common.Math.Bounds bestBounds,
+        ref string bestClean,
+        ref float bestArea,
+        ref string bestAddon,
+        string addonName)
+    {
+        if (canvas == null) return;
+
+        ScanUldHover(&canvas->UldManager, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, addonName);
+        if (canvas->AtkResNode != null)
         {
-            ProcessNodeTree(addon->RootNode, visited);
+            ScanNodeHover(canvas->AtkResNode, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, addonName);
+        }
+        if (canvas->OwnerNode != null)
+        {
+            ScanNodeHover(&canvas->OwnerNode->AtkResNode, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, addonName);
         }
     }
 
-    private unsafe void ProcessNodeTree(AtkResNode* node, HashSet<nint> visited, int depth = 0)
+    private unsafe void ScanUldHover(
+        AtkUldManager* uldManager,
+        nint titleNode,
+        string titleText,
+        FFXIVClientStructs.FFXIV.Common.Math.Bounds canvasBounds,
+        Vector2 mousePos,
+        HashSet<nint> visited,
+        ref AtkTextNode* bestCandidate,
+        ref FFXIVClientStructs.FFXIV.Common.Math.Bounds bestBounds,
+        ref string bestClean,
+        ref float bestArea,
+        ref string bestAddon,
+        string addonName,
+        int depth = 0)
+    {
+        if (uldManager == null || depth > 18) return;
+        if (!visited.Add((nint)uldManager)) return;
+
+        if (uldManager->RootNode != null)
+        {
+            ScanNodeHover(uldManager->RootNode, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, addonName, depth + 1);
+        }
+
+        if (uldManager->NodeList != null)
+        {
+            for (var i = 0; i < uldManager->NodeListCount; i++)
+            {
+                var node = uldManager->NodeList[i];
+                if (node == null) continue;
+                ScanNodeHover(node, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, addonName, depth + 1);
+            }
+        }
+    }
+
+    private unsafe void ScanNodeHover(
+        AtkResNode* node,
+        nint titleNode,
+        string titleText,
+        FFXIVClientStructs.FFXIV.Common.Math.Bounds canvasBounds,
+        Vector2 mousePos,
+        HashSet<nint> visited,
+        ref AtkTextNode* bestCandidate,
+        ref FFXIVClientStructs.FFXIV.Common.Math.Bounds bestBounds,
+        ref string bestClean,
+        ref float bestArea,
+        ref string bestAddon,
+        string addonName,
+        int depth = 0)
     {
         if (node == null || depth > 20) return;
         if (!visited.Add((nint)node)) return;
@@ -247,7 +421,7 @@ public class QuestJournalWatcher : IDisposable
         {
             var textNode = node->GetAsAtkTextNode();
             if (textNode == null) textNode = (AtkTextNode*)node;
-            TryProcessTextNode(textNode);
+            CheckCandidateHover(textNode, titleNode, titleText, canvasBounds, mousePos, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, addonName);
         }
         else if ((int)node->Type >= 1000 || nodeType == NodeType.Component)
         {
@@ -256,10 +430,10 @@ public class QuestJournalWatcher : IDisposable
 
             if (compNode != null && compNode->Component != null)
             {
-                ProcessUldManager(&compNode->Component->UldManager, visited, depth + 1);
+                ScanUldHover(&compNode->Component->UldManager, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, addonName, depth + 1);
                 if (compNode->Component->AtkResNode != null)
                 {
-                    ProcessNodeTree(compNode->Component->AtkResNode, visited, depth + 1);
+                    ScanNodeHover(compNode->Component->AtkResNode, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, addonName, depth + 1);
                 }
 
                 try
@@ -270,7 +444,7 @@ public class QuestJournalWatcher : IDisposable
                         var renderer = (AtkComponentListItemRenderer*)compNode->Component;
                         if (renderer != null && renderer->ButtonTextNode != null)
                         {
-                            TryProcessTextNode(renderer->ButtonTextNode);
+                            CheckCandidateHover(renderer->ButtonTextNode, titleNode, titleText, canvasBounds, mousePos, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, addonName);
                         }
                     }
                     else if (compType == ComponentType.Button)
@@ -278,146 +452,149 @@ public class QuestJournalWatcher : IDisposable
                         var btn = (AtkComponentButton*)compNode->Component;
                         if (btn != null && btn->ButtonTextNode != null)
                         {
-                            TryProcessTextNode(btn->ButtonTextNode);
+                            CheckCandidateHover(btn->ButtonTextNode, titleNode, titleText, canvasBounds, mousePos, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, addonName);
                         }
                     }
                 }
-                catch
-                {
-                    // 忽略非預期元件轉型異常
-                }
+                catch { }
             }
         }
 
-        // 1. 雙向走訪當前節點自身所在層級的兄弟鏈表 (確保 RootNode 或 AtkResNode 的同層兄弟節點不漏掃)
+        // 走訪同層兄弟節點
         for (var next = node->NextSiblingNode; next != null; next = next->NextSiblingNode)
         {
-            ProcessNodeTree(next, visited, depth);
+            ScanNodeHover(next, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, addonName, depth);
         }
         for (var prev = node->PrevSiblingNode; prev != null; prev = prev->PrevSiblingNode)
         {
-            ProcessNodeTree(prev, visited, depth);
+            ScanNodeHover(prev, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, addonName, depth);
         }
 
-        // 2. 雙向完整覆蓋子節點鏈表
+        // 走訪子節點鏈表
         var child = node->ChildNode;
         if (child != null)
         {
             for (var curr = child; curr != null; curr = curr->NextSiblingNode)
             {
-                ProcessNodeTree(curr, visited, depth + 1);
+                ScanNodeHover(curr, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, addonName, depth + 1);
             }
             for (var curr = child->PrevSiblingNode; curr != null; curr = curr->PrevSiblingNode)
             {
-                ProcessNodeTree(curr, visited, depth + 1);
+                ScanNodeHover(curr, titleNode, titleText, canvasBounds, mousePos, visited, ref bestCandidate, ref bestBounds, ref bestClean, ref bestArea, ref bestAddon, addonName, depth + 1);
             }
         }
     }
 
-    private unsafe void ProcessUldManager(AtkUldManager* uldManager, HashSet<nint> visited, int depth = 0)
-    {
-        if (uldManager == null || depth > 18) return;
-        if (!visited.Add((nint)uldManager)) return;
-
-        // 1. 遍歷 RootNode
-        if (uldManager->RootNode != null)
-        {
-            ProcessNodeTree(uldManager->RootNode, visited, depth + 1);
-        }
-
-        // 2. 遍歷 NodeList
-        if (uldManager->NodeList != null)
-        {
-            for (var i = 0; i < uldManager->NodeListCount; i++)
-            {
-                var node = uldManager->NodeList[i];
-                if (node == null) continue;
-                ProcessNodeTree(node, visited, depth + 1);
-            }
-        }
-    }
-
-    private unsafe void TryProcessTextNode(AtkTextNode* textNode)
+    private unsafe void CheckCandidateHover(
+        AtkTextNode* textNode,
+        nint titleNode,
+        string titleText,
+        FFXIVClientStructs.FFXIV.Common.Math.Bounds canvasBounds,
+        Vector2 mousePos,
+        ref AtkTextNode* bestCandidate,
+        ref FFXIVClientStructs.FFXIV.Common.Math.Bounds bestBounds,
+        ref string bestClean,
+        ref float bestArea,
+        ref string bestAddon,
+        string addonName)
     {
         if (textNode == null) return;
 
-        string currentText;
+        // 1. 嚴格過濾任務名稱節點 (不要翻譯任務名稱)
+        if (titleNode != 0 && (nint)textNode == titleNode) return;
+
+        // 2. 節點自身與其父階層可見性檢查
+        if (!IsNodeHierarchyVisible(&textNode->AtkResNode)) return;
+
+        // 3. 讀取節點在螢幕上的精確邊界
+        FFXIVClientStructs.FFXIV.Common.Math.Bounds bounds = default;
+        textNode->AtkResNode.GetBounds(&bounds);
+
+        float minX = Math.Min(bounds.Pos1.X, bounds.Pos2.X);
+        float maxX = Math.Max(bounds.Pos1.X, bounds.Pos2.X);
+        float minY = Math.Min(bounds.Pos1.Y, bounds.Pos2.Y);
+        float maxY = Math.Max(bounds.Pos1.Y, bounds.Pos2.Y);
+
+        float width = maxX - minX;
+        float height = maxY - minY;
+        if (width < 3 || height < 3) return;
+
+        // 4. 滑鼠命中判定 (Hit Test)
+        if (mousePos.X < minX || mousePos.X > maxX || mousePos.Y < minY || mousePos.Y > maxY)
+        {
+            return;
+        }
+
+        // 5. 若有畫布邊界限制，且節點落在畫布外 (例如已捲動出畫布視野)，則排除
+        if (canvasBounds.Width > 10 && canvasBounds.Height > 10)
+        {
+            if (!IsPointInside(canvasBounds, mousePos))
+            {
+                return;
+            }
+        }
+
+        // 6. 讀取並清理文字內容
+        string raw;
         try
         {
-            currentText = textNode->NodeText.ToString();
+            raw = textNode->NodeText.ToString();
         }
         catch
         {
             return;
         }
+        if (string.IsNullOrWhiteSpace(raw)) return;
 
-        if (string.IsNullOrWhiteSpace(currentText)) return;
+        var clean = ExtractCleanText(textNode, raw);
+        if (string.IsNullOrWhiteSpace(clean)) return;
 
-        // 解析 SeString 並清理二進位控制字符，取得乾淨純文字
-        var cleanText = ExtractCleanText(textNode, currentText);
-        if (string.IsNullOrWhiteSpace(cleanText)) return;
-
-        // 檢查是否已經是我們替換過的譯文
-        lock (translatedSet)
-        {
-            if (translatedSet.Contains(cleanText) || translatedSet.Contains(currentText)) return;
-        }
-
-        // 檢查是否為「總結歷程/冒險錄」且用戶未開啟該選項
-        if (!config.TranslateJournalRecap && IsQuestRecapText(cleanText))
+        // 7. 若文字內容與任務名稱相同，嚴格跳過 (不要翻譯任務名稱)
+        if (!string.IsNullOrEmpty(titleText) && clean.Equals(titleText, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
-        // 過濾系統按鈕、純數字、等級等不需翻譯的標籤
-        if (IsIgnoredOrSystemLabel(cleanText)) return;
+        // 8. 過濾 UI 按鈕標籤、純數字、等級等
+        if (IsIgnoredOrSystemLabel(clean)) return;
 
-        // 確認含有可翻譯字元 (日文假名、漢字、或英文字詞)
-        if (!ContainsTranslatableCharacters(cleanText)) return;
+        // 9. 過濾歷程回顧 (若未開啟)
+        if (!config.TranslateJournalRecap && IsQuestRecapText(clean)) return;
 
-        // 若快取中已有對應譯文，直接在主執行緒安全執行 SetText
-        if (translationCache.TryGetValue(cleanText, out var cachedTranslation))
+        // 10. 確保包含可翻譯文字 (日文、漢字或英文字詞)
+        if (!ContainsTranslatableCharacters(clean)) return;
+
+        // 11. 優先挑選包圍盒面積最小者 (代表最具體精確的文字段落或行)
+        float area = width * height;
+        if (area < bestArea)
         {
-            if (currentText != cachedTranslation && cleanText != cachedTranslation)
-            {
-                try
-                {
-                    textNode->SetText(cachedTranslation);
-                    try
-                    {
-                        textNode->ResizeNodeForCurrentText();
-                    }
-                    catch
-                    {
-                        // 某些固定排版節點可能不支援或無須手動重設尺寸
-                    }
-
-                    lock (translatedSet)
-                    {
-                        translatedSet.Add(cachedTranslation);
-                    }
-                    AddDiagnosticLog($"[已套用] {cleanText.Substring(0, Math.Min(20, cleanText.Length))}... -> {cachedTranslation.Substring(0, Math.Min(20, cachedTranslation.Length))}...");
-                }
-                catch (Exception ex)
-                {
-                    log.Warning(ex, $"調用 SetText 替換任務說明節點文字失敗: {cachedTranslation}");
-                }
-            }
-            return;
+            bestCandidate = textNode;
+            bestBounds = bounds;
+            bestClean = clean;
+            bestArea = area;
+            bestAddon = addonName;
         }
+    }
 
-        // 若剛發生過翻譯錯誤，等待冷卻時間後再重試，避免每 6 幀無限洗版請求
-        if (failedCooldowns.TryGetValue(cleanText, out var retryAfter) && DateTime.UtcNow < retryAfter)
+    private static unsafe bool IsNodeHierarchyVisible(AtkResNode* node)
+    {
+        var curr = node;
+        while (curr != null)
         {
-            return;
+            if (!curr->IsVisible()) return false;
+            curr = curr->ParentNode;
         }
+        return true;
+    }
 
-        // 若無快取且尚未送翻，啟動背景非同步翻譯
-        if (pendingTranslations.TryAdd(cleanText, true))
-        {
-            AddDiagnosticLog($"[送出翻譯] {cleanText.Substring(0, Math.Min(30, cleanText.Length))}...");
-            RequestTranslationAsync(cleanText);
-        }
+    private static bool IsPointInside(FFXIVClientStructs.FFXIV.Common.Math.Bounds bounds, Vector2 point)
+    {
+        float minX = Math.Min(bounds.Pos1.X, bounds.Pos2.X);
+        float maxX = Math.Max(bounds.Pos1.X, bounds.Pos2.X);
+        float minY = Math.Min(bounds.Pos1.Y, bounds.Pos2.Y);
+        float maxY = Math.Max(bounds.Pos1.Y, bounds.Pos2.Y);
+
+        return point.X >= minX && point.X <= maxX && point.Y >= minY && point.Y <= maxY;
     }
 
     private void RequestTranslationAsync(string cleanText)
@@ -430,7 +607,6 @@ public class QuestJournalWatcher : IDisposable
                 await translationSemaphore.WaitAsync();
                 acquired = true;
 
-                // 進入排程後再次確認是否已在快取中
                 if (translationCache.ContainsKey(cleanText))
                 {
                     return;
@@ -438,7 +614,6 @@ public class QuestJournalWatcher : IDisposable
 
                 var (_, rawTranslated) = await translator.TranslateQuestTextAsync(cleanText);
 
-                // 檢查是否為錯誤代碼（避免寫入介面，並設定 5 秒重試冷卻）
                 if (IsTranslationError(rawTranslated))
                 {
                     failedCooldowns[cleanText] = DateTime.UtcNow.AddSeconds(5);
@@ -446,12 +621,10 @@ public class QuestJournalWatcher : IDisposable
                     return;
                 }
 
-                // 剝離免費備用防線的前綴標籤，以純譯文形式替換原生 UI
                 string translated = CleanFallbackPrefix(rawTranslated);
 
                 if (!string.IsNullOrWhiteSpace(translated))
                 {
-                    // 若啟用缺字轉折映射，自動將中文字元轉換為遊戲字型支援之字元
                     string finalResult = config.QuestEnableGlyphFolding
                         ? GlyphFolder.Fold(translated, config.CustomGlyphEntries)
                         : translated;
@@ -462,14 +635,22 @@ public class QuestJournalWatcher : IDisposable
                     {
                         translatedSet.Add(finalResult);
                     }
-                    AddDiagnosticLog($"[翻譯完成] {cleanText.Substring(0, Math.Min(15, cleanText.Length))} -> {finalResult.Substring(0, Math.Min(15, finalResult.Length))}");
+
+                    // 如果目前懸浮中的文字剛好是本翻譯，立即同步更新
+                    if (CurrentHover != null && CurrentHover.CleanText == cleanText)
+                    {
+                        CurrentHover.TranslatedText = finalResult;
+                        CurrentHover.IsPending = false;
+                    }
+
+                    AddDiagnosticLog($"[懸停完成] {cleanText.Substring(0, Math.Min(15, cleanText.Length))} -> {finalResult.Substring(0, Math.Min(15, finalResult.Length))}");
                 }
             }
             catch (Exception ex)
             {
                 failedCooldowns[cleanText] = DateTime.UtcNow.AddSeconds(5);
-                log.Warning(ex, $"任務說明翻譯失敗: {cleanText}");
-                AddDiagnosticLog($"[異常] {ex.Message}");
+                log.Warning(ex, $"任務懸浮翻譯失敗: {cleanText}");
+                AddDiagnosticLog($"[懸停異常] {ex.Message}");
             }
             finally
             {
@@ -499,10 +680,7 @@ public class QuestJournalWatcher : IDisposable
                     }
                 }
             }
-            catch
-            {
-                // 若 SeString 解析失敗則退回字串清理
-            }
+            catch { }
         }
         return CleanSeStringText(fallbackRaw);
     }
@@ -536,7 +714,6 @@ public class QuestJournalWatcher : IDisposable
                 sb.Append(c);
                 continue;
             }
-            // 排除二進位控制字符 (0x00 - 0x1F) 以及私有不可見圖示字元/替換字元
             if (c < 0x20 || c == 0x7F || c == 0xFFFD || (c >= 0xE000 && c <= 0xF8FF))
             {
                 continue;
@@ -576,16 +753,12 @@ public class QuestJournalWatcher : IDisposable
     {
         if (IgnoredUiLabels.Contains(text)) return true;
 
-        // 純數字或帶逗號千分位數字 (例如: "1", "1,000", "50")
         if (int.TryParse(text.Replace(",", "").Replace(".", ""), out _)) return true;
 
-        // 等級標籤 (例如: "Lv 50", "Lv.90", "LV70")
         if (text.StartsWith("Lv", StringComparison.OrdinalIgnoreCase)) return true;
 
-        // 進度數值 (例如: "0/1", "12/20")
         if (text.Contains('/') && text.Length <= 7) return true;
 
-        // 極短符號字串
         if (text.Length <= 1) return true;
 
         return false;
@@ -595,15 +768,14 @@ public class QuestJournalWatcher : IDisposable
     {
         foreach (var c in text)
         {
-            if ((c >= 0x3040 && c <= 0x309F) || // 平假名
-                (c >= 0x30A0 && c <= 0x30FF) || // 片假名
-                (c >= 0x4E00 && c <= 0x9FFF))   // CJK 漢字
+            if ((c >= 0x3040 && c <= 0x309F) ||
+                (c >= 0x30A0 && c <= 0x30FF) ||
+                (c >= 0x4E00 && c <= 0x9FFF))
             {
                 return true;
             }
         }
 
-        // 支援純英文句（至少包含 4 個拉丁字母）
         int latinCount = 0;
         foreach (var c in text)
         {
@@ -619,7 +791,6 @@ public class QuestJournalWatcher : IDisposable
 
     public void Dispose()
     {
-        this.framework.Update -= OnFrameworkUpdate;
         ClearCache();
         translationSemaphore.Dispose();
     }

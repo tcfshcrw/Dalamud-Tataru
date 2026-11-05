@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.IO;
@@ -902,8 +902,17 @@ public class ConfigWindow : Window
         }
 
         ImGui.Spacing();
-        ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "任務說明欄與日誌翻譯替換 (參考 Echoglossian 架構)");
-        ImGui.TextDisabled("在遊戲開啟任務詳細說明欄或接取/回報任務時，自動將任務背景說明、內文與標題替換為翻譯後文字。");
+        ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "任務說明內容懸浮翻譯 (滑鼠懸停於文字旁顯示懸浮視窗)");
+        ImGui.TextDisabled("當滑鼠懸浮在任務詳細說明、接取或回報內容文字上方時，在滑鼠旁邊以懸浮視窗顯示翻譯（不翻譯任務名稱，只翻譯任務內容）。");
+
+        var hoverEnabled = config.QuestHoverTranslate;
+        if (ImGui.Checkbox("啟用任務內容滑鼠懸浮翻譯", ref hoverEnabled))
+        {
+            config.QuestHoverTranslate = hoverEnabled;
+            config.Save();
+        }
+        ImGui.SameLine();
+        ImGui.TextDisabled("(滑鼠移至任務內容文字時，在游標旁彈出翻譯視窗)");
 
         var jDetail = config.TranslateJournalDetail;
         if (ImGui.Checkbox("任務詳細說明欄 (JournalDetail)", ref jDetail))

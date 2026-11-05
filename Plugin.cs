@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Text.Unicode;
 using System.Threading.Tasks;
@@ -54,6 +54,7 @@ public class Plugin : IDalamudPlugin
     private readonly GlossaryEditorWindow glossaryEditorWindow;
     private readonly ChatHistoryWindow chatHistoryWindow;
     private readonly ConfigWindow configWindow;
+    private readonly QuestHoverOverlayWindow questHoverOverlayWindow;
     private readonly IDtrBarEntry? dtrEntry;
 
     public Plugin()
@@ -120,6 +121,8 @@ public class Plugin : IDalamudPlugin
         WindowSystem.AddWindow(configWindow);
         WindowSystem.AddWindow(glossaryEditorWindow);
         WindowSystem.AddWindow(chatHistoryWindow);
+        questHoverOverlayWindow = new QuestHoverOverlayWindow(Configuration, questJournalWatcher, translator, CjkFontHandle);
+        WindowSystem.AddWindow(questHoverOverlayWindow);
 
         var version = GetType().Assembly.GetName().Version;
         string versionStr = version != null ? $"v{version}" : "v1.0.0";
