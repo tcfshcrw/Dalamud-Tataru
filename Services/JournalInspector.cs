@@ -60,17 +60,150 @@ public class JournalInspector
             var addon = (AtkUnitBase*)addonPtr.Address;
             if (addon == null || !addon->IsVisible) continue;
 
-            // 1. 深度遍歷 addon->UldManager
+            // 1. 針對特定 Addon 的專屬結構欄位進行直接掃描
+            if (addonName == "JournalDetail")
+            {
+                var detail = (AddonJournalDetail*)addon;
+                ScanTextNode(detail->DutyNameTextNode, addonName, "DutyNameTextNode", results, visitedNodes);
+                ScanTextNode(detail->DutyLevelTextNode, addonName, "DutyLevelTextNode", results, visitedNodes);
+                ScanTextNode(detail->RewardsReceivedTextNode, addonName, "RewardsReceivedTextNode", results, visitedNodes);
+                ScanTextNode(detail->AtkTextNode2A8, addonName, "AtkTextNode2A8", results, visitedNodes);
+                ScanTextNode(detail->RequirementsNotMetLabelTextNode, addonName, "RequirementsNotMetLabelTextNode", results, visitedNodes);
+                ScanTextNode(detail->RequirementsNotMetTextNode, addonName, "RequirementsNotMetTextNode", results, visitedNodes);
+                ScanTextNode(detail->AtkTextNode2C0, addonName, "AtkTextNode2C0", results, visitedNodes);
+
+                if (detail->JournalCanvasNode != null)
+                {
+                    ScanUldManager(&detail->JournalCanvasNode->UldManager, addonName, results, visitedNodes, visitedUlds);
+                    if (detail->JournalCanvasNode->AtkResNode != null)
+                    {
+                        ScanResNode(detail->JournalCanvasNode->AtkResNode, addonName, "JournalCanvas->AtkResNode", results, visitedNodes, visitedUlds);
+                    }
+                    if (detail->JournalCanvasNode->OwnerNode != null)
+                    {
+                        ScanResNode(&detail->JournalCanvasNode->OwnerNode->AtkResNode, addonName, "JournalCanvas->OwnerNode", results, visitedNodes, visitedUlds);
+                    }
+
+                    // 依 ID 深度探測 JournalCanvas 內部的所有 TextNode 與 ItemRenderer
+                    for (uint id = 1; id <= 128; id++)
+                    {
+                        try
+                        {
+                            var tNode = detail->JournalCanvasNode->GetTextNodeById(id);
+                            if (tNode != null)
+                            {
+                                ScanTextNode(tNode, addonName, $"JournalCanvas->GetTextNodeById({id})", results, visitedNodes);
+                            }
+                        }
+                        catch { }
+
+                        try
+                        {
+                            var renderer = detail->JournalCanvasNode->GetComponentItemRendererById(id);
+                            if (renderer != null)
+                            {
+                                if (renderer->ButtonTextNode != null)
+                                {
+                                    ScanTextNode(renderer->ButtonTextNode, addonName, $"JournalCanvas->ItemRenderer({id})->ButtonTextNode", results, visitedNodes);
+                                }
+                                ScanUldManager(&renderer->UldManager, addonName, results, visitedNodes, visitedUlds);
+                                if (renderer->AtkResNode != null)
+                                {
+                                    ScanResNode(renderer->AtkResNode, addonName, $"JournalCanvas->ItemRenderer({id})->AtkResNode", results, visitedNodes, visitedUlds);
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+            else if (addonName == "JournalAccept")
+            {
+                var accept = (AddonJournalAccept*)addon;
+                ScanTextNode(accept->QuestTitleText, addonName, "QuestTitleText", results, visitedNodes);
+                ScanTextNode(accept->JournalCanvasText, addonName, "JournalCanvasText", results, visitedNodes);
+
+                if (accept->JournalCanvas != null)
+                {
+                    ScanUldManager(&accept->JournalCanvas->UldManager, addonName, results, visitedNodes, visitedUlds);
+                    if (accept->JournalCanvas->AtkResNode != null)
+                    {
+                        ScanResNode(accept->JournalCanvas->AtkResNode, addonName, "JournalAccept->CanvasResNode", results, visitedNodes, visitedUlds);
+                    }
+                    for (uint id = 1; id <= 64; id++)
+                    {
+                        try
+                        {
+                            var tNode = accept->JournalCanvas->GetTextNodeById(id);
+                            if (tNode != null)
+                            {
+                                ScanTextNode(tNode, addonName, $"JournalAccept->Canvas->GetTextNodeById({id})", results, visitedNodes);
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+            else if (addonName == "JournalResult")
+            {
+                var result = (AddonJournalResult*)addon;
+                ScanTextNode(result->AtkTextNode250, addonName, "AtkTextNode250", results, visitedNodes);
+                ScanTextNode(result->AtkTextNode258, addonName, "AtkTextNode258", results, visitedNodes);
+
+                if (result->AtkComponentJournalCanvas268 != null)
+                {
+                    ScanUldManager(&result->AtkComponentJournalCanvas268->UldManager, addonName, results, visitedNodes, visitedUlds);
+                    if (result->AtkComponentJournalCanvas268->AtkResNode != null)
+                    {
+                        ScanResNode(result->AtkComponentJournalCanvas268->AtkResNode, addonName, "JournalResult->CanvasResNode", results, visitedNodes, visitedUlds);
+                    }
+                }
+            }
+
+            // 2. 深度遍歷 addon->UldManager
             ScanUldManager(&addon->UldManager, addonName, results, visitedNodes, visitedUlds);
 
-            // 2. 深度遍歷 addon->RootNode
+            // 3. 深度遍歷 addon->RootNode
             if (addon->RootNode != null)
             {
-                ScanResNode(addon->RootNode, addonName, string.Empty, results, visitedNodes, visitedUlds);
+                ScanResNode(addon->RootNode, addonName, "RootNode", results, visitedNodes, visitedUlds);
             }
         }
 
         return results;
+    }
+
+    private unsafe void ScanTextNode(AtkTextNode* textNode, string addonName, string parentInfo, List<JournalNodeInspectionInfo> results, HashSet<nint> visitedNodes)
+    {
+        if (textNode == null) return;
+        var ptr = (nint)textNode;
+        if (!visitedNodes.Add(ptr)) return;
+
+        string raw = string.Empty;
+        try
+        {
+            raw = textNode->NodeText.ToString();
+        }
+        catch { }
+
+        if (!string.IsNullOrEmpty(raw))
+        {
+            var clean = CleanSeStringText(raw);
+            results.Add(new JournalNodeInspectionInfo
+            {
+                AddonName = addonName,
+                NodeId = textNode->NodeId,
+                NodeType = "TextNode",
+                ComponentType = parentInfo,
+                RawText = raw,
+                CleanText = clean,
+                Length = raw.Length,
+                HasTranslatableChars = ContainsTranslatableCharacters(clean),
+                IsIgnoredLabel = IsIgnoredOrSystemLabel(clean),
+                IsRecap = IsQuestRecapText(clean),
+                NodePointer = ptr
+            });
+        }
     }
 
     private unsafe void ScanUldManager(AtkUldManager* uldManager, string addonName, List<JournalNodeInspectionInfo> results, HashSet<nint> visitedNodes, HashSet<nint> visitedUlds, int depth = 0)
@@ -101,32 +234,7 @@ public class JournalInspector
 
         if (node->Type == NodeType.Text)
         {
-            var textNode = (AtkTextNode*)node;
-            string raw = string.Empty;
-            try
-            {
-                raw = textNode->NodeText.ToString();
-            }
-            catch { }
-
-            if (!string.IsNullOrEmpty(raw))
-            {
-                var clean = CleanSeStringText(raw);
-                results.Add(new JournalNodeInspectionInfo
-                {
-                    AddonName = addonName,
-                    NodeId = node->NodeId,
-                    NodeType = "TextNode",
-                    ComponentType = parentInfo,
-                    RawText = raw,
-                    CleanText = clean,
-                    Length = raw.Length,
-                    HasTranslatableChars = ContainsTranslatableCharacters(clean),
-                    IsIgnoredLabel = IsIgnoredOrSystemLabel(clean),
-                    IsRecap = IsQuestRecapText(clean),
-                    NodePointer = (nint)node
-                });
-            }
+            ScanTextNode((AtkTextNode*)node, addonName, parentInfo, results, visitedNodes);
         }
         else if (node->Type == NodeType.Component)
         {
@@ -147,7 +255,7 @@ public class JournalInspector
                     var renderer = (AtkComponentListItemRenderer*)compNode->Component;
                     if (renderer != null && renderer->ButtonTextNode != null)
                     {
-                        ScanResNode((AtkResNode*)renderer->ButtonTextNode, addonName, $"{parentInfo}->RendererBtnText", results, visitedNodes, visitedUlds, depth + 1);
+                        ScanTextNode(renderer->ButtonTextNode, addonName, $"{parentInfo}->RendererBtnText", results, visitedNodes);
                     }
                 }
                 catch { }
