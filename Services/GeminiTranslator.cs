@@ -506,15 +506,15 @@ public class GeminiTranslator : IDisposable
             // Fallback: If JSON parsing didn't extract text, use Regex to extract "text" and "name"
             if (resText == cleanJson && cleanJson.Contains("\"text\""))
             {
-                var matchText = System.Text.RegularExpressions.Regex.Match(cleanJson, @"""text""\s*:\s*""([^""]+)""");
+                var matchText = System.Text.RegularExpressions.Regex.Match(cleanJson, @"""text""\s*:\s*""((?:\\.|[^""\\])*)""", System.Text.RegularExpressions.RegexOptions.Singleline);
                 if (matchText.Success)
                 {
-                    resText = matchText.Groups[1].Value;
+                    resText = matchText.Groups[1].Value.Replace("\\n", "\n").Replace("\\r", "\r").Replace("\\\"", "\"").Replace("\\\\", "\\");
                 }
-                var matchName = System.Text.RegularExpressions.Regex.Match(cleanJson, @"""name""\s*:\s*""([^""]+)""");
+                var matchName = System.Text.RegularExpressions.Regex.Match(cleanJson, @"""name""\s*:\s*""((?:\\.|[^""\\])*)""", System.Text.RegularExpressions.RegexOptions.Singleline);
                 if (matchName.Success && !hasGlossarySpeaker)
                 {
-                    resSpeaker = matchName.Groups[1].Value;
+                    resSpeaker = matchName.Groups[1].Value.Replace("\\\"", "\"").Replace("\\\\", "\\");
                 }
             }
 
@@ -597,8 +597,26 @@ public class GeminiTranslator : IDisposable
 
         result = (PlayerNameHelper.Unmask(result.s, config), PlayerNameHelper.Unmask(result.t, config));
 
-        cache[cacheKey] = result;
+        if (!IsAnyTranslationError(result.t))
+        {
+            cache[cacheKey] = result;
+        }
         return result;
+    }
+
+    public static bool IsAnyTranslationError(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return true;
+        return IsGeminiError(text) ||
+               IsLmStudioError(text) ||
+               IsYoudaoError(text) ||
+               IsGoogleError(text) ||
+               text.StartsWith("[全線翻譯異常") ||
+               text.StartsWith("[有道翻譯失敗]") ||
+               text.StartsWith("[Google 翻譯失敗]") ||
+               text.StartsWith("[有道與 Google") ||
+               text.StartsWith("[Google 與有道") ||
+               text.StartsWith("[所有翻譯管道皆失敗]");
     }
 
     public void Dispose()

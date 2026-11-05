@@ -291,15 +291,15 @@ public class LmStudioTranslator : IDisposable
             // Fallback: If JSON parsing didn't extract text, use Regex to extract "text" and "name"
             if (resText == toParse && toParse.Contains("\"text\""))
             {
-                var matchText = System.Text.RegularExpressions.Regex.Match(toParse, @"""text""\s*:\s*""([^""]+)""");
+                var matchText = System.Text.RegularExpressions.Regex.Match(toParse, @"""text""\s*:\s*""((?:\\.|[^""\\])*)""", System.Text.RegularExpressions.RegexOptions.Singleline);
                 if (matchText.Success)
                 {
-                    resText = matchText.Groups[1].Value;
+                    resText = matchText.Groups[1].Value.Replace("\\n", "\n").Replace("\\r", "\r").Replace("\\\"", "\"").Replace("\\\\", "\\");
                 }
-                var matchName = System.Text.RegularExpressions.Regex.Match(toParse, @"""name""\s*:\s*""([^""]+)""");
+                var matchName = System.Text.RegularExpressions.Regex.Match(toParse, @"""name""\s*:\s*""((?:\\.|[^""\\])*)""", System.Text.RegularExpressions.RegexOptions.Singleline);
                 if (matchName.Success && !hasGlossarySpeaker)
                 {
-                    resSpeaker = matchName.Groups[1].Value;
+                    resSpeaker = matchName.Groups[1].Value.Replace("\\\"", "\"").Replace("\\\\", "\\");
                 }
             }
 

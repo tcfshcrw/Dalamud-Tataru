@@ -2,7 +2,9 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
@@ -19,11 +21,13 @@ public class QuestJournalWatcher : IDisposable
 
     private readonly ConcurrentDictionary<string, string> translationCache = new();
     private readonly ConcurrentDictionary<string, bool> pendingTranslations = new();
+    private readonly ConcurrentDictionary<string, DateTime> failedCooldowns = new();
     private readonly HashSet<string> translatedSet = new();
+    private readonly SemaphoreSlim translationSemaphore = new(2, 2);
 
     // 除錯與即時診斷佇列
     public readonly ConcurrentQueue<string> RecentDetectedTexts = new();
-    private const int MaxLogQueue = 25;
+    private const int MaxLogQueue = 40;
 
     private int frameCounter = 0;
     private const int ThrottleFrames = 6;
@@ -31,8 +35,8 @@ public class QuestJournalWatcher : IDisposable
     private static readonly HashSet<string> IgnoredUiLabels = new(StringComparer.OrdinalIgnoreCase)
     {
         // 日文原生 UI 按鈕與標籤
-        "受領する", "破棄", "戻る", "辞退", "辭退", "コンプリート", "マップ", "決定", "閉じる", "再挑戦",
-        "確認", "はい", "いいえ", "ギル", "EXP", "経験値", "經驗值", "報酬", "選択報酬", "オプション", "受注条件",
+        "受領する", "受注", "破棄", "戻る", "辞退", "辭退", "コンプリート", "マップ", "マップ表示", "決定", "閉じる", "再挑戦",
+        "確認", "はい", "いいえ", "キャンセル", "ギル", "EXP", "経験値", "經驗值", "報酬", "選択報酬", "オプション", "受注条件",
         // 英文原生 UI 按鈕與標籤
         "Accept", "Decline", "Abandon", "Complete", "Map", "OK", "Cancel", "Close", "Retry",
         "Yes", "No", "Gil", "Reward", "Rewards", "Optional", "Requirements"
@@ -55,6 +59,7 @@ public class QuestJournalWatcher : IDisposable
     {
         translationCache.Clear();
         pendingTranslations.Clear();
+        failedCooldowns.Clear();
         lock (translatedSet)
         {
             translatedSet.Clear();
@@ -62,9 +67,46 @@ public class QuestJournalWatcher : IDisposable
         while (RecentDetectedTexts.TryDequeue(out _)) { }
     }
 
+    public string GetNodeStatus(string cleanText, string rawText)
+    {
+        if (string.IsNullOrWhiteSpace(cleanText)) return "Empty";
+        lock (translatedSet)
+        {
+            if (translatedSet.Contains(cleanText) || translatedSet.Contains(rawText))
+            {
+                return "AlreadyReplaced (InTranslatedSet)";
+            }
+        }
+        if (translationCache.TryGetValue(cleanText, out var cached))
+        {
+            return $"Cached -> '{cached.Substring(0, Math.Min(25, cached.Length))}'";
+        }
+        if (pendingTranslations.ContainsKey(cleanText))
+        {
+            return "Translating (Pending)";
+        }
+        if (failedCooldowns.TryGetValue(cleanText, out var retryTime) && DateTime.UtcNow < retryTime)
+        {
+            return $"RetryCooldown ({(retryTime - DateTime.UtcNow).TotalSeconds:F1}s)";
+        }
+        if (!config.TranslateJournalRecap && IsQuestRecapText(cleanText))
+        {
+            return "Skipped (RecapDisabled)";
+        }
+        if (IsIgnoredOrSystemLabel(cleanText))
+        {
+            return "Skipped (IgnoredSystemLabel)";
+        }
+        if (!ContainsTranslatableCharacters(cleanText))
+        {
+            return "Skipped (NoTranslatableChars)";
+        }
+        return "Unprocessed";
+    }
+
     private void AddDiagnosticLog(string entry)
     {
-        RecentDetectedTexts.Enqueue(entry);
+        RecentDetectedTexts.Enqueue($"[{DateTime.Now:HH:mm:ss}] {entry}");
         while (RecentDetectedTexts.Count > MaxLogQueue)
         {
             RecentDetectedTexts.TryDequeue(out _);
@@ -100,11 +142,7 @@ public class QuestJournalWatcher : IDisposable
 
                         if (detail->JournalCanvasNode != null)
                         {
-                            ProcessUldManager(&detail->JournalCanvasNode->UldManager, visited);
-                            if (detail->JournalCanvasNode->AtkResNode != null)
-                            {
-                                ProcessNodeTree(detail->JournalCanvasNode->AtkResNode, visited);
-                            }
+                            ProcessJournalCanvas(detail->JournalCanvasNode, visited);
                         }
                     }
                 }, visited);
@@ -123,11 +161,7 @@ public class QuestJournalWatcher : IDisposable
 
                         if (accept->JournalCanvas != null)
                         {
-                            ProcessUldManager(&accept->JournalCanvas->UldManager, visited);
-                            if (accept->JournalCanvas->AtkResNode != null)
-                            {
-                                ProcessNodeTree(accept->JournalCanvas->AtkResNode, visited);
-                            }
+                            ProcessJournalCanvas(accept->JournalCanvas, visited);
                         }
                     }
                 }, visited);
@@ -146,11 +180,7 @@ public class QuestJournalWatcher : IDisposable
 
                         if (result->AtkComponentJournalCanvas268 != null)
                         {
-                            ProcessUldManager(&result->AtkComponentJournalCanvas268->UldManager, visited);
-                            if (result->AtkComponentJournalCanvas268->AtkResNode != null)
-                            {
-                                ProcessNodeTree(result->AtkComponentJournalCanvas268->AtkResNode, visited);
-                            }
+                            ProcessJournalCanvas(result->AtkComponentJournalCanvas268, visited);
                         }
                     }
                 }, visited);
@@ -159,6 +189,21 @@ public class QuestJournalWatcher : IDisposable
         catch (Exception ex)
         {
             log.Debug(ex, "任務說明欄節點掃描時發生非致命例外。");
+        }
+    }
+
+    private unsafe void ProcessJournalCanvas(AtkComponentJournalCanvas* canvas, HashSet<nint> visited)
+    {
+        if (canvas == null) return;
+
+        ProcessUldManager(&canvas->UldManager, visited);
+        if (canvas->AtkResNode != null)
+        {
+            ProcessNodeTree(canvas->AtkResNode, visited);
+        }
+        if (canvas->OwnerNode != null)
+        {
+            ProcessNodeTree(&canvas->OwnerNode->AtkResNode, visited);
         }
     }
 
@@ -194,17 +239,22 @@ public class QuestJournalWatcher : IDisposable
 
     private unsafe void ProcessNodeTree(AtkResNode* node, HashSet<nint> visited, int depth = 0)
     {
-        if (node == null || depth > 16) return;
+        if (node == null || depth > 20) return;
         if (!visited.Add((nint)node)) return;
 
-        if (node->Type == NodeType.Text)
+        var nodeType = node->GetNodeType();
+        if (nodeType == NodeType.Text || node->Type == NodeType.Text)
         {
-            TryProcessTextNode((AtkTextNode*)node);
+            var textNode = node->GetAsAtkTextNode();
+            if (textNode == null) textNode = (AtkTextNode*)node;
+            TryProcessTextNode(textNode);
         }
-        else if (node->Type == NodeType.Component)
+        else if ((int)node->Type >= 1000 || nodeType == NodeType.Component)
         {
-            var compNode = (AtkComponentNode*)node;
-            if (compNode->Component != null)
+            var compNode = node->GetAsAtkComponentNode();
+            if (compNode == null) compNode = (AtkComponentNode*)node;
+
+            if (compNode != null && compNode->Component != null)
             {
                 ProcessUldManager(&compNode->Component->UldManager, visited, depth + 1);
                 if (compNode->Component->AtkResNode != null)
@@ -212,23 +262,44 @@ public class QuestJournalWatcher : IDisposable
                     ProcessNodeTree(compNode->Component->AtkResNode, visited, depth + 1);
                 }
 
-                // 檢查 ListItemRenderer 的專有文字節點
                 try
                 {
-                    var renderer = (AtkComponentListItemRenderer*)compNode->Component;
-                    if (renderer != null && renderer->ButtonTextNode != null)
+                    var compType = compNode->Component->GetComponentType();
+                    if (compType == ComponentType.ListItemRenderer)
                     {
-                        TryProcessTextNode(renderer->ButtonTextNode);
+                        var renderer = (AtkComponentListItemRenderer*)compNode->Component;
+                        if (renderer != null && renderer->ButtonTextNode != null)
+                        {
+                            TryProcessTextNode(renderer->ButtonTextNode);
+                        }
+                    }
+                    else if (compType == ComponentType.Button)
+                    {
+                        var btn = (AtkComponentButton*)compNode->Component;
+                        if (btn != null && btn->ButtonTextNode != null)
+                        {
+                            TryProcessTextNode(btn->ButtonTextNode);
+                        }
                     }
                 }
                 catch
                 {
-                    // 忽略非 ListItemRenderer 型別
+                    // 忽略非預期元件轉型異常
                 }
             }
         }
 
-        // 雙向完整覆蓋子兄弟鏈表
+        // 1. 雙向走訪當前節點自身所在層級的兄弟鏈表 (確保 RootNode 或 AtkResNode 的同層兄弟節點不漏掃)
+        for (var next = node->NextSiblingNode; next != null; next = next->NextSiblingNode)
+        {
+            ProcessNodeTree(next, visited, depth);
+        }
+        for (var prev = node->PrevSiblingNode; prev != null; prev = prev->PrevSiblingNode)
+        {
+            ProcessNodeTree(prev, visited, depth);
+        }
+
+        // 2. 雙向完整覆蓋子節點鏈表
         var child = node->ChildNode;
         if (child != null)
         {
@@ -245,7 +316,7 @@ public class QuestJournalWatcher : IDisposable
 
     private unsafe void ProcessUldManager(AtkUldManager* uldManager, HashSet<nint> visited, int depth = 0)
     {
-        if (uldManager == null || depth > 14) return;
+        if (uldManager == null || depth > 18) return;
         if (!visited.Add((nint)uldManager)) return;
 
         // 1. 遍歷 RootNode
@@ -282,8 +353,8 @@ public class QuestJournalWatcher : IDisposable
 
         if (string.IsNullOrWhiteSpace(currentText)) return;
 
-        // 清理二進位控制字符，取得乾淨純文字
-        var cleanText = CleanSeStringText(currentText);
+        // 解析 SeString 並清理二進位控制字符，取得乾淨純文字
+        var cleanText = ExtractCleanText(textNode, currentText);
         if (string.IsNullOrWhiteSpace(cleanText)) return;
 
         // 檢查是否已經是我們替換過的譯文
@@ -335,10 +406,16 @@ public class QuestJournalWatcher : IDisposable
             return;
         }
 
+        // 若剛發生過翻譯錯誤，等待冷卻時間後再重試，避免每 6 幀無限洗版請求
+        if (failedCooldowns.TryGetValue(cleanText, out var retryAfter) && DateTime.UtcNow < retryAfter)
+        {
+            return;
+        }
+
         // 若無快取且尚未送翻，啟動背景非同步翻譯
         if (pendingTranslations.TryAdd(cleanText, true))
         {
-            AddDiagnosticLog($"[翻譯中] {cleanText.Substring(0, Math.Min(30, cleanText.Length))}...");
+            AddDiagnosticLog($"[送出翻譯] {cleanText.Substring(0, Math.Min(30, cleanText.Length))}...");
             RequestTranslationAsync(cleanText);
         }
     }
@@ -347,13 +424,24 @@ public class QuestJournalWatcher : IDisposable
     {
         Task.Run(async () =>
         {
+            bool acquired = false;
             try
             {
+                await translationSemaphore.WaitAsync();
+                acquired = true;
+
+                // 進入排程後再次確認是否已在快取中
+                if (translationCache.ContainsKey(cleanText))
+                {
+                    return;
+                }
+
                 var (_, rawTranslated) = await translator.TranslateAsync(string.Empty, cleanText);
 
-                // 檢查是否為錯誤代碼（避免寫入介面）
+                // 檢查是否為錯誤代碼（避免寫入介面，並設定 5 秒重試冷卻）
                 if (IsTranslationError(rawTranslated))
                 {
+                    failedCooldowns[cleanText] = DateTime.UtcNow.AddSeconds(5);
                     AddDiagnosticLog($"[翻譯錯誤] {cleanText.Substring(0, Math.Min(15, cleanText.Length))}: {rawTranslated}");
                     return;
                 }
@@ -368,6 +456,7 @@ public class QuestJournalWatcher : IDisposable
                         ? GlyphFolder.Fold(translated, config.CustomGlyphEntries)
                         : translated;
 
+                    failedCooldowns.TryRemove(cleanText, out _);
                     translationCache[cleanText] = finalResult;
                     lock (translatedSet)
                     {
@@ -378,30 +467,77 @@ public class QuestJournalWatcher : IDisposable
             }
             catch (Exception ex)
             {
+                failedCooldowns[cleanText] = DateTime.UtcNow.AddSeconds(5);
                 log.Warning(ex, $"任務說明翻譯失敗: {cleanText}");
                 AddDiagnosticLog($"[異常] {ex.Message}");
             }
             finally
             {
+                if (acquired)
+                {
+                    translationSemaphore.Release();
+                }
                 pendingTranslations.TryRemove(cleanText, out _);
             }
         });
     }
 
-    private static string CleanSeStringText(string raw)
+    internal static unsafe string ExtractCleanText(AtkTextNode* textNode, string fallbackRaw)
+    {
+        if (textNode != null)
+        {
+            try
+            {
+                var span = textNode->NodeText.AsSpan();
+                if (span.Length > 0)
+                {
+                    var parsed = SeString.Parse(span);
+                    var textVal = parsed.TextValue;
+                    if (!string.IsNullOrWhiteSpace(textVal))
+                    {
+                        return CleanSeStringText(textVal);
+                    }
+                }
+            }
+            catch
+            {
+                // 若 SeString 解析失敗則退回字串清理
+            }
+        }
+        return CleanSeStringText(fallbackRaw);
+    }
+
+    internal static string CleanSeStringText(string raw)
     {
         if (string.IsNullOrEmpty(raw)) return string.Empty;
 
         var sb = new StringBuilder(raw.Length);
+        bool inPayload = false;
+
         foreach (var c in raw)
         {
+            if (c == 0x02)
+            {
+                inPayload = true;
+                continue;
+            }
+            if (c == 0x03)
+            {
+                inPayload = false;
+                continue;
+            }
+            if (inPayload)
+            {
+                continue;
+            }
+
             if (c == '\n' || c == '\r' || c == '\t')
             {
                 sb.Append(c);
                 continue;
             }
-            // 排除二進位控制字符 (0x00 - 0x1F) 以及私有不可見控制字元
-            if (c < 0x20 || c == 0x7F)
+            // 排除二進位控制字符 (0x00 - 0x1F) 以及私有不可見圖示字元/替換字元
+            if (c < 0x20 || c == 0x7F || c == 0xFFFD || (c >= 0xE000 && c <= 0xF8FF))
             {
                 continue;
             }
@@ -411,7 +547,7 @@ public class QuestJournalWatcher : IDisposable
         return sb.ToString().Trim();
     }
 
-    private static bool IsQuestRecapText(string text)
+    internal static bool IsQuestRecapText(string text)
     {
         return text.StartsWith("前回までの冒険録", StringComparison.OrdinalIgnoreCase)
             || text.Contains("前回までの冒険録")
@@ -420,22 +556,7 @@ public class QuestJournalWatcher : IDisposable
 
     private static bool IsTranslationError(string? text)
     {
-        if (string.IsNullOrWhiteSpace(text)) return true;
-
-        return text.StartsWith("[Gemini") ||
-               text.StartsWith("[模型") ||
-               text.StartsWith("【請先於設定中輸入") ||
-               text.StartsWith("[翻譯未回傳結果]") ||
-               text.StartsWith("[翻譯請求逾時]") ||
-               text.StartsWith("[翻譯異常") ||
-               text.StartsWith("[LM Studio") ||
-               text.StartsWith("[有道異常") ||
-               text.StartsWith("[有道翻譯錯誤") ||
-               text.StartsWith("[有道服務") ||
-               text.StartsWith("[Google 錯誤") ||
-               text.StartsWith("[Google 異常") ||
-               text.StartsWith("[所有翻譯管道皆失敗]") ||
-               text.StartsWith("[LM Studio 與免費備用防線皆翻譯失敗]");
+        return GeminiTranslator.IsAnyTranslationError(text);
     }
 
     private static string CleanFallbackPrefix(string text)
@@ -451,7 +572,7 @@ public class QuestJournalWatcher : IDisposable
         return text;
     }
 
-    private static bool IsIgnoredOrSystemLabel(string text)
+    internal static bool IsIgnoredOrSystemLabel(string text)
     {
         if (IgnoredUiLabels.Contains(text)) return true;
 
@@ -470,7 +591,7 @@ public class QuestJournalWatcher : IDisposable
         return false;
     }
 
-    private static bool ContainsTranslatableCharacters(string text)
+    internal static bool ContainsTranslatableCharacters(string text)
     {
         foreach (var c in text)
         {
@@ -500,5 +621,6 @@ public class QuestJournalWatcher : IDisposable
     {
         this.framework.Update -= OnFrameworkUpdate;
         ClearCache();
+        translationSemaphore.Dispose();
     }
 }

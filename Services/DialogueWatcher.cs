@@ -456,10 +456,11 @@ public unsafe class DialogueWatcher : IDisposable
                         return CleanGameText(text);
                     }
                 }
-                else if (node->Type == NodeType.Component)
+                else if ((int)node->Type >= 1000 || node->GetNodeType() == NodeType.Component)
                 {
-                    var compNode = (AtkComponentNode*)node;
-                    if (compNode->Component != null)
+                    var compNode = node->GetAsAtkComponentNode();
+                    if (compNode == null) compNode = (AtkComponentNode*)node;
+                    if (compNode != null && compNode->Component != null)
                     {
                         var text = ExtractTextFromUld(&compNode->Component->UldManager, depth + 1);
                         if (!string.IsNullOrWhiteSpace(text))

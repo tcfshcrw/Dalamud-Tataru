@@ -2884,8 +2884,16 @@ public class ConfigWindow : Window
                     sb.AppendLine($"[Addon: {info.AddonName}] NodeId={info.NodeId} | Path={info.ComponentType}");
                     sb.AppendLine($"  RawText (Len={info.Length}): '{info.RawText}'");
                     sb.AppendLine($"  CleanText: '{info.CleanText}'");
-                    sb.AppendLine($"  IsRecap={info.IsRecap} | HasTranslatable={info.HasTranslatableChars} | IsIgnored={info.IsIgnoredLabel}");
+                    sb.AppendLine($"  Status={info.WatcherStatus} | IsRecap={info.IsRecap} | HasTranslatable={info.HasTranslatableChars} | IsIgnored={info.IsIgnoredLabel}");
                     sb.AppendLine();
+                }
+                if (questJournalWatcher != null && !questJournalWatcher.RecentDetectedTexts.IsEmpty)
+                {
+                    sb.AppendLine("=== Recent QuestJournalWatcher Diagnostic Logs ===");
+                    foreach (var logLine in questJournalWatcher.RecentDetectedTexts)
+                    {
+                        sb.AppendLine($"  {logLine}");
+                    }
                 }
                 ImGui.SetClipboardText(sb.ToString());
                 inspectorStatusMsg = "已成功複製完整節點報告至剪貼簿！可直接貼給開發者排查。";
@@ -2948,7 +2956,7 @@ public class ConfigWindow : Window
             if (isHeaderOpen)
             {
                 ImGui.TextDisabled($"所屬路徑: {info.ComponentType}");
-                ImGui.TextDisabled($"標記狀態: 故事回顧(IsRecap)={info.IsRecap} | 含有翻譯字元={info.HasTranslatableChars} | 系統標籤={info.IsIgnoredLabel}");
+                ImGui.TextDisabled($"翻譯狀態: {info.WatcherStatus} | 故事回顧(IsRecap)={info.IsRecap} | 含有翻譯字元={info.HasTranslatableChars} | 系統標籤={info.IsIgnoredLabel}");
 
                 ImGui.TextColored(new Vector4(1.0f, 0.9f, 0.5f, 1.0f), "原始文字 (Raw Text):");
                 ImGui.Indent(10f);

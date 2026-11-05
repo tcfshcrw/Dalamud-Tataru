@@ -107,7 +107,7 @@ public class Plugin : IDalamudPlugin
 
         GlyphFolder.Initialize(DataManager, PluginLog);
         questJournalWatcher = new QuestJournalWatcher(Framework, GameGui, PluginLog, Configuration, translator);
-        journalInspector = new JournalInspector(GameGui, PluginLog, Configuration);
+        journalInspector = new JournalInspector(GameGui, PluginLog, Configuration, questJournalWatcher);
         chatTranslationService = new ChatTranslationService(Configuration, translator, ChatGui, ClientState, Condition, PluginLog);
         overlayWindow = new SubtitleOverlayWindow(Configuration, CjkFontHandle);
         replaceOverlayWindow = new DialogueReplaceOverlayWindow(Configuration, dialogueWatcher, CjkFontHandle);

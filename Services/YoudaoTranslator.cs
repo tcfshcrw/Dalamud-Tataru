@@ -173,14 +173,23 @@ public class YoudaoTranslator : IDisposable
             string decrypted = Decrypt(encryptedResponse);
 
             var data = JsonNode.Parse(decrypted);
-            var resultArray = data?["translateResult"]?[0]?.AsArray();
+            var outerArray = data?["translateResult"]?.AsArray();
             string rawResult = string.Empty;
-            if (resultArray != null)
+            if (outerArray != null)
             {
-                foreach (var item in resultArray)
+                var lines = new System.Collections.Generic.List<string>();
+                foreach (var para in outerArray)
                 {
-                    rawResult += item?["tgt"]?.ToString();
+                    var paraArray = para?.AsArray();
+                    if (paraArray == null) continue;
+                    var sbPara = new StringBuilder();
+                    foreach (var item in paraArray)
+                    {
+                        sbPara.Append(item?["tgt"]?.ToString());
+                    }
+                    lines.Add(sbPara.ToString());
                 }
+                rawResult = string.Join("\n", lines);
             }
 
             if (string.IsNullOrEmpty(rawResult))
