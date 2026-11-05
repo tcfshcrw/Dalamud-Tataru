@@ -171,7 +171,7 @@ public class QuestJournalWatcher : IDisposable
         // 2. 深度遍歷 ULD 樹（包括 RootNode、NodeList）
         ProcessUldManager(&addon->UldManager, visited);
 
-        // 3. 遍歷整個節點樹鏈表 (RootNode -> ChildNode -> NextSiblingNode)
+        // 3. 遍歷整個節點樹
         if (addon->RootNode != null)
         {
             ProcessNodeTree(addon->RootNode, visited);
@@ -180,7 +180,7 @@ public class QuestJournalWatcher : IDisposable
 
     private unsafe void ProcessNodeTree(AtkResNode* node, HashSet<nint> visited, int depth = 0)
     {
-        if (node == null || depth > 12) return;
+        if (node == null || depth > 14) return;
         if (!visited.Add((nint)node)) return;
 
         if (node->Type == NodeType.Text)
@@ -200,15 +200,24 @@ public class QuestJournalWatcher : IDisposable
             }
         }
 
-        for (var child = node->ChildNode; child != null; child = child->NextSiblingNode)
+        // 雙向完整覆蓋子兄弟鏈表（FFXIV 的 ChildNode 常指向末尾，須雙向走訪）
+        var child = node->ChildNode;
+        if (child != null)
         {
-            ProcessNodeTree(child, visited, depth + 1);
+            for (var curr = child; curr != null; curr = curr->NextSiblingNode)
+            {
+                ProcessNodeTree(curr, visited, depth + 1);
+            }
+            for (var curr = child->PrevSiblingNode; curr != null; curr = curr->PrevSiblingNode)
+            {
+                ProcessNodeTree(curr, visited, depth + 1);
+            }
         }
     }
 
     private unsafe void ProcessUldManager(AtkUldManager* uldManager, HashSet<nint> visited, int depth = 0)
     {
-        if (uldManager == null || depth > 10) return;
+        if (uldManager == null || depth > 12) return;
         if (!visited.Add((nint)uldManager)) return;
 
         // 1. 遍歷 RootNode
@@ -245,7 +254,7 @@ public class QuestJournalWatcher : IDisposable
 
         if (string.IsNullOrWhiteSpace(currentText)) return;
 
-        // 清理 FFXIV SeString 控制碼（\u0002 ... \u0003）以取得純文字
+        // 清理二進位控制字符，取得乾淨純文字
         var cleanText = CleanSeStringText(currentText);
         if (string.IsNullOrWhiteSpace(cleanText)) return;
 
@@ -350,22 +359,17 @@ public class QuestJournalWatcher : IDisposable
     {
         if (string.IsNullOrEmpty(raw)) return string.Empty;
 
-        // 移除 FFXIV SeString 二進位控制字符塊 (\u0002 ... \u0003)
         var sb = new StringBuilder(raw.Length);
-        bool inControlSequence = false;
         foreach (var c in raw)
         {
-            if (c == '\u0002')
+            if (c == '\n' || c == '\r' || c == '\t')
             {
-                inControlSequence = true;
+                sb.Append(c);
                 continue;
             }
-            if (inControlSequence)
+            // 排除二進位控制字符 (0x00 - 0x1F) 以及私有不可見控制字元
+            if (c < 0x20 || c == 0x7F)
             {
-                if (c == '\u0003')
-                {
-                    inControlSequence = false;
-                }
                 continue;
             }
             sb.Append(c);
