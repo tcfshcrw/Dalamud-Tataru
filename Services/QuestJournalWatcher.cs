@@ -320,7 +320,7 @@ public class QuestJournalWatcher : IDisposable
         if (addonPtr.IsNull) return;
 
         var addon = (AtkUnitBase*)addonPtr.Address;
-        if (addon == null || !addon->IsVisible || !addon->IsReady) return;
+        if (addon == null || !addon->IsVisible || addon->RootNode == null) return;
 
         // 檢查滑鼠是否在該 Addon 的視窗邊界內，若不在則直接略過整個視窗
         FFXIVClientStructs.FFXIV.Common.Math.Bounds winBounds = default;
@@ -331,7 +331,7 @@ public class QuestJournalWatcher : IDisposable
         }
         if (winBounds.Width > 0 && winBounds.Height > 0)
         {
-            if (!IsPointInside(winBounds, mousePos)) return;
+            if (!IsPointInside(winBounds, mousePos, margin: 15f)) return;
         }
 
         scanner(addon, 0, string.Empty, default);
@@ -587,12 +587,12 @@ public class QuestJournalWatcher : IDisposable
         return true;
     }
 
-    private static bool IsPointInside(FFXIVClientStructs.FFXIV.Common.Math.Bounds bounds, Vector2 point)
+    private static bool IsPointInside(FFXIVClientStructs.FFXIV.Common.Math.Bounds bounds, Vector2 point, float margin = 0f)
     {
-        float minX = Math.Min(bounds.Pos1.X, bounds.Pos2.X);
-        float maxX = Math.Max(bounds.Pos1.X, bounds.Pos2.X);
-        float minY = Math.Min(bounds.Pos1.Y, bounds.Pos2.Y);
-        float maxY = Math.Max(bounds.Pos1.Y, bounds.Pos2.Y);
+        float minX = Math.Min(bounds.Pos1.X, bounds.Pos2.X) - margin;
+        float maxX = Math.Max(bounds.Pos1.X, bounds.Pos2.X) + margin;
+        float minY = Math.Min(bounds.Pos1.Y, bounds.Pos2.Y) - margin;
+        float maxY = Math.Max(bounds.Pos1.Y, bounds.Pos2.Y) + margin;
 
         return point.X >= minX && point.X <= maxX && point.Y >= minY && point.Y <= maxY;
     }

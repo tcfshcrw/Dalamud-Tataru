@@ -20,6 +20,7 @@ public class DialogueReplaceOverlayWindow : Window
     private bool needsApplyBounds = false;
 
     public bool IsConfigOpen { get; set; } = false;
+    public bool IsManualPreview { get; set; } = false;
 
     private static float GetGlobalScale()
     {
@@ -100,7 +101,7 @@ public class DialogueReplaceOverlayWindow : Window
 
         float globalScale = GetGlobalScale();
 
-        if (IsConfigOpen)
+        if (IsConfigOpen || IsManualPreview)
         {
             // Title bar visible for manual drag when not auto-locked to an active Talk addon
             Flags = ImGuiWindowFlags.NoScrollbar;
@@ -169,8 +170,8 @@ public class DialogueReplaceOverlayWindow : Window
             SizeCondition = ImGuiCond.FirstUseEver;
         }
 
-        // 對話框關閉且未開啟設定視窗時，即刻關閉視窗
-        if (!IsConfigOpen && !isDialogueActive)
+        // 對話框關閉且未開啟設定視窗或手動預覽時，即刻關閉視窗
+        if (!IsConfigOpen && !IsManualPreview && !isDialogueActive)
         {
             IsOpen = false;
             return;
@@ -241,8 +242,8 @@ public class DialogueReplaceOverlayWindow : Window
                 origTextColor = config.OriginalTextColor;
             }
 
-            // When config is open and there is no active in-game dialogue, show an interactive preview
-            if (IsConfigOpen && (!isDialogueActive || currentEntry == null))
+            // When config is open or manual preview is toggled, and there is no active in-game dialogue, show an interactive preview
+            if ((IsConfigOpen || IsManualPreview) && (!isDialogueActive || currentEntry == null))
             {
                 string modeDesc = config.ReplaceUseNativeBubble 
                     ? $"【原生泡泡底圖模式 (方案 B)】預覽中！\n遊戲原版泡泡框與金箭頭將完整保留，底色偵測：{(dialogueWatcher.IsTalkBubbleDark ? "【深色底 -> 自動白色文字】" : "【淺色底 -> 自動黑色文字】")}。"

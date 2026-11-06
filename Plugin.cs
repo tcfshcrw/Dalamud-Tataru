@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Text.Unicode;
 using System.Threading.Tasks;
@@ -320,12 +320,30 @@ public class Plugin : IDalamudPlugin
             case "toggle":
                 if (Configuration.ReplaceGameTalkAddon)
                 {
-                    replaceOverlayWindow.IsOpen = !replaceOverlayWindow.IsOpen;
+                    replaceOverlayWindow.IsManualPreview = !replaceOverlayWindow.IsManualPreview;
+                    replaceOverlayWindow.IsOpen = replaceOverlayWindow.IsManualPreview;
+                    ChatGui.Print($"[Tataru] 對話覆蓋視窗: {(replaceOverlayWindow.IsManualPreview ? "已開啟 (預覽與調整模式)" : "已關閉")}");
                 }
                 else
                 {
-                    overlayWindow.IsOpen = !overlayWindow.IsOpen;
+                    overlayWindow.IsManualPreview = !overlayWindow.IsManualPreview;
+                    overlayWindow.IsOpen = overlayWindow.IsManualPreview;
+                    ChatGui.Print($"[Tataru] 字幕懸浮視窗: {(overlayWindow.IsManualPreview ? "已開啟 (預覽與調整模式)" : "已關閉")}");
                 }
+                break;
+
+            case "hover":
+                if (parts.Length > 1)
+                {
+                    var state = parts[1].ToLowerInvariant();
+                    Configuration.QuestHoverTranslate = state is "on" or "1" or "true";
+                }
+                else
+                {
+                    Configuration.QuestHoverTranslate = !Configuration.QuestHoverTranslate;
+                }
+                Configuration.Save();
+                ChatGui.Print($"[Tataru] 任務內容滑鼠懸浮翻譯: {(Configuration.QuestHoverTranslate ? "開啟 (ON)" : "關閉 (OFF)")}");
                 break;
 
             case "glossary" or "dict" or "custom":
@@ -447,6 +465,7 @@ public class Plugin : IDalamudPlugin
                 ChatGui.Print("  /tataru on / off - 啟用或關閉對話翻譯與覆蓋 (Enable/disable dialogue translation)");
                 ChatGui.Print("  /tataru status - 查看當前翻譯開關與引擎狀態");
                 ChatGui.Print("  /tataru toggle - 切換字幕懸浮窗顯示狀態 (Toggle subtitle overlay)");
+                ChatGui.Print("  /tataru hover [on|off] - 開關任務內容滑鼠懸浮翻譯 (Toggle quest hover overlay)");
                 ChatGui.Print("  /tataru replace [on|off] - Toggle native dialogue replace overlay mode");
                 ChatGui.Print("  /tataru LMS [on|off] - Toggle or switch primary engine to LM Studio");
                 ChatGui.Print("  /tataru gemini [on|off] - Toggle or switch primary engine to Gemini");

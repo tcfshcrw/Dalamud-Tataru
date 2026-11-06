@@ -17,6 +17,7 @@ public class SubtitleOverlayWindow : Window
     private bool needsReset = false;
 
     public bool IsConfigOpen { get; set; } = false;
+    public bool IsManualPreview { get; set; } = false;
 
     public void ResetPosition()
     {
@@ -83,7 +84,7 @@ public class SubtitleOverlayWindow : Window
             return;
         }
 
-        if (IsConfigOpen)
+        if (IsConfigOpen || IsManualPreview)
         {
             // Title bar visible, freely movable and resizable, mouse clickable
             Flags = ImGuiWindowFlags.NoScrollbar;
@@ -137,15 +138,15 @@ public class SubtitleOverlayWindow : Window
             float wrapPos = Math.Max(100f, ImGui.GetWindowWidth() - 35f);
             ImGui.PushTextWrapPos(wrapPos);
 
-            // When config is open and there is no active in-game dialogue, show an interactive preview
-            if (IsConfigOpen && (!isDialogueActive || currentEntry == null))
+            // When config is open or manual preview is toggled, and there is no active in-game dialogue, show an interactive preview
+            if ((IsConfigOpen || IsManualPreview) && (!isDialogueActive || currentEntry == null))
             {
                 if (config.ShowSpeaker)
                 {
                     ImGui.TextColored(config.SpeakerColor, "【タタル (塔塔露)】");
                 }
 
-                ImGui.TextColored(config.TextColor, "冒險者大人，【獨立字幕模式】預覽中！\n您可以拖曳移動位置或拉動邊框調整大小。\n關閉設定視窗後，視窗將自動開啟「滑鼠點擊穿透」。");
+                ImGui.TextColored(config.TextColor, "冒險者大人，【獨立字幕懸浮視窗】預覽中！\n您可以拖曳移動位置或拉動邊框調整大小。\n輸入 /tataru toggle 可切換關閉預覽，或關閉設定視窗後將自動開啟「滑鼠點擊穿透」。");
                 if (config.ShowOriginalText)
                 {
                     var origRatio = config.OriginalFontScaleRatio > 0.1f ? config.OriginalFontScaleRatio : 0.75f;

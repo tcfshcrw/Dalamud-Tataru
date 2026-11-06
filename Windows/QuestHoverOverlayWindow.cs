@@ -36,28 +36,36 @@ public class QuestHoverOverlayWindow : Window
 
         RespectCloseHotkey = false;
         DisableWindowSounds = true;
-        IsOpen = false;
+        IsOpen = true;
     }
 
-    public override void PreDraw()
+    public override bool PreOpenCheck()
     {
+        IsOpen = true;
+
         if (!config.Enabled || !config.QuestHoverTranslate)
         {
-            IsOpen = false;
-            return;
+            return false;
         }
 
         var mousePos = ImGui.GetIO().MousePos;
         questWatcher.UpdateHover(mousePos);
 
+        return questWatcher.CurrentHover != null;
+    }
+
+    public override bool DrawConditions()
+    {
+        return questWatcher.CurrentHover != null;
+    }
+
+    public override void PreDraw()
+    {
         var hover = questWatcher.CurrentHover;
         if (hover == null)
         {
-            IsOpen = false;
             return;
         }
-
-        IsOpen = true;
 
         // 在滑鼠右下方偏移顯示懸浮視窗
         var targetPos = hover.MousePos + new Vector2(18f, 18f);
