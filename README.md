@@ -13,23 +13,32 @@
 
 - **純原生遊戲內運行**：直接作為 Dalamud Plugin 運行於遊戲內部，**不需要開啟任何外部 exe 程式或 Electron 視窗**。
 - **極致精準的對話攔截**：透過 Dalamud 記憶體直接抓取遊戲 UI 文字（`AddonTalk` 主線支線對話、`TalkSubtitle` 過場 CG 字幕、`AddonBattleTalk` 副本首領喊話），零延遲且絕不漏字，再也不用依賴脆弱的 OCR 或外部指針掃描。
-- **任務詳細說明與日誌原位替換（參考 Echoglossian 架構）**：
-  - **`JournalDetail`（任務詳細說明欄）**：開啟日誌或點選地圖任務時，將任務背景故事、內文與標題直接替換為流暢中文。
-  - **`JournalAccept`（接取任務確認視窗）**：向 NPC 接取任務時直接閱讀中文任務說明與條件。
-  - **`JournalResult`（回報任務結算視窗）**：完成任務交接時劇情總結文字同步原位替換。
-  - 內建非同步執行緒安全防迴圈快取，開啟過之任務 0 毫秒秒出，不卡頓且不浪費 API 額度。
-- **全聊天頻道即時翻譯（參考 ChatTranslated 架構）**：
-  - 支援小隊、部隊、大喊、密語、說話、團隊、系統訊息等細緻頻道過濾。
-  - 可選擇「直接輸出至聊天視窗（支援原味顏色標籤與自訂前綴）」或「開啟獨立聊天翻譯歷史視窗 (`/tataru chat`)」。
+- **任務內容滑鼠懸浮即時翻譯 (Quest Mouse Hover Overlay)**：
+  - **滑鼠懸停直覺顯現**：將滑鼠移至任務詳細說明、接取委託書或回報結算內容文字上方時，自動在游標旁彈出深色半透明圓角 ImGui 懸浮翻譯視窗；滑鼠移開立即隱藏。
+  - **智慧排除任務標題**：刻意保留任務原有名稱（不翻譯任務標題），只翻譯背景故事與目標內容，確保玩家能無縫對照外部 Wiki 攻略與遊戲原地圖導航。
+  - **Gemini API 額度保護防線**：任務說明文字繁多，為避免瞬間耗盡寶貴的 Gemini 每分鐘免費請求額度（Rate Limit），任務翻譯自動限定由 **LM Studio 本地大模型**、**有道翻譯 (Youdao)** 或 **Google 翻譯** 執行，無額度負擔。
+  - **支援三大任務視窗與歷程回顧**：全面支援 `JournalDetail`（日誌詳細說明欄與前回冒險錄 / 歷程回顧長文）、`JournalAccept`（接取任務委託書）、`JournalResult`（回報任務結算）。
+- **內建任務節點深層診斷除錯器 (Journal Inspector)**：
+  - 提供專屬「任務除錯 (Inspector)」面板，具備遊戲原生 UI 樹、組件節點（Component Node >= 1000）、JournalCanvas 畫布項目與按鈕文字節點深層掃描能力。
+  - 支援在遊戲螢幕上以彩色邊界框 (Bounding Box) 視覺化標記節點位置、Node ID、尺寸與偵測狀態，方便排查與確認文字覆蓋範圍。
+- **全聊天頻道即時翻譯 (Chat Translation)**：
+  - 支援小隊、部隊、大喊、密語、說話、團隊、通訊貝 (LS)、跨服通訊貝 (CWLS)、系統訊息等細緻頻道分類與過濾。
+  - **攔截並隱藏原生遊戲訊息**：可選擇直接以譯文替換原文（`ChatSuppressOriginal`），避免聊天框同時出現日文與中文重複兩行；翻譯失敗或無需翻譯時自動安全還原原生訊息。
+  - 輸出格式自由切換：支援「僅輸出翻譯內容」或「原文 [譯] 譯文」雙語對照。
+  - 可選擇「直接輸出至聊天視窗（支援原味色彩標籤與自訂前綴）」或「開啟獨立聊天翻譯歷史視窗 (`/tataru chat`)」。
   - 內建巨集過濾、網址忽略、自己發言過濾與副本自動啟用開關。
-- **遊戲字型缺字保護與生僻字摺疊映射 (GlyphFolder)**：
+- **遊戲字型缺字保護與自訂字形映射表 (Custom Glyph Mappings)**：
   - 自動比對遊戲原裝字型（`axis_12.fdt`）字元集，將日語客戶端未收錄之中文漢字無損替換為同形字或相似字（如「薫」->「薫」），徹底杜絕介面出現「?」或缺字方塊。
-  - 提供獨立的自訂字元對照表編輯器、預設常用字庫與即時預覽測試器。
-- **Tataru 繁簡專有名詞辭典整合**：內建 Tataru 原版 `jp-ch-name.json` 與 `after-translation-*.json` 譯後名詞校正，NPC 姓名與艾歐澤亞專有名詞精準對齊官方中文在地化。
-- **多引擎無縫備援防線 (Multi-Engine & Fallback Pipeline)**：
-  - **主引擎**：預設採用最新 `gemini-3.8-flash`（支援一鍵同步最新模型清單）或本機部署的 LM Studio 大模型。
+  - **自訂字形映射表編輯器**：支援自由新增與刪除字元替換對照（如將「卡」轉為「カ」避免在日服聊天框變成「＝」等號）。
+  - 提供常用字庫一鍵填入與即時輸入預覽測試器 (Live Preview)。
+- **Tataru 專有名詞辭典與四語自訂名詞對照表 (Custom Glossary)**：
+  - 內建 Tataru 原版 `jp-ch-name.json` 與 `after-translation-*.json` 譯後校正，擴充收錄住宅區 (Housing Districts) 地名、最新 7.0 關鍵角色與世界觀術語。
+  - **四語同步對照**：支援日文原文 (JP)、英文原文 (EN)、繁體中文 (CHT)、簡體中文 (CHS)。
+  - **譯前預先替換 (Pre-Translation Replacement)**：AI 翻譯前先標記與鎖定專有名詞，大幅提升長句翻譯的術語一致性。
+  - **獨立儲存檔案 `CustomGlossary.json`**：安全隔離 API Key，可安心分享對照表；編輯儲存後自動即時清除翻譯快取。
+- **多引擎無縫切換與備援防線 (Multi-Engine & Fallback Pipeline)**：
+  - **主引擎**：預設採用最新 `gemini-3.8-flash` 或本機部署的 LM Studio 大模型。
   - **智慧備援**：當 Gemini 或 LM Studio 額度受限或網路逾時，自動無縫切換至有道翻譯與 100% 免費的 Google Translate 備用防線。
-- **多語自訂對照表 (Custom Glossary)**：全新支援「日文 (JP) / 英文 (EN) / 繁體中文 (CHT) / 簡體中文 (CHS)」四語自訂名詞對照，獨立以 `CustomGlossary.json` 儲存，安全分享無資安顧慮，並自動注入 AI 提示詞與後處理雙重校正。
 - **雙模式自由切換**：
   - **沉浸式原生對話框覆蓋模式 (Replace Mode)**：保留遊戲原生對話泡泡底圖與跳動金箭頭，直接在原對話框內覆蓋流暢中文譯文，宛如官方繁中版體驗。
   - **輕量化 ImGui 字幕懸浮窗**：獨立自訂懸浮視窗，支援說話者名稱顯示、中日雙語即時對照、滑鼠穿透（Click-Through）、自訂字體與透明度、對話結束自動淡出隱藏。
@@ -59,19 +68,48 @@
 
 ---
 
-## 任務說明與日誌翻譯替換 (Quest Journal & Detail)
+## 任務內容滑鼠懸浮翻譯 (Quest Mouse Hover Overlay)
 
-參考了 **Echoglossian** 插件的 Native-Window 介面替換哲學，深入遊戲原生 UI 樹：
+為了給玩家帶來最穩定且直覺的任務閱讀體驗，插件採用了 **滑鼠懸停 ImGui 懸浮窗 (Hover Overlay)** 機制：
 
-1. **全面支援三大任務視窗**：
-   - **`JournalDetail`（任務詳細說明欄）**：在任務日誌面板或點擊地圖任務點開啟的任務詳細資訊框，背景設定與任務步驟完整中文化。
-   - **`JournalAccept`（接取任務視窗）**：接任務時彈出的羊皮紙委託書，任務標題與說明文字直接替換。
-   - **`JournalResult`（回報任務視窗）**：回報任務交差時，劇情收尾總結說明直接替換。
-2. **非同步安全渲染**：
-   - 背景非同步翻譯，主執行緒安全執行 `AtkTextNode->SetText` 與 `ResizeNodeForCurrentText`，徹底杜絕遊戲崩潰。
-   - 本地記憶體對照快取，已翻過內容瞬間載入。
-3. **字型字元摺疊保護**：
-   - 自動連動 `GlyphFolder`，確保長篇任務背景說明在遊戲內不會因缺字出現方塊問號。
+1. **直覺的滑鼠懸停閱讀**：
+   - 當滑鼠移至任務說明或目標文字上方時，自動在滑鼠游標右下方彈出 50% 半透明深色圓角懸浮翻譯視窗。
+   - 滑鼠移開即自動淡出隱藏，完全不遮擋遊戲介面。
+2. **智慧排除任務標題**：
+   - 刻意保留原生任務名稱，只翻譯詳細任務內容、委託背景與目標要求。
+   - 避免翻譯標題後無法在外部 Wiki、攻略站或地圖上快速搜尋對應任務。
+3. **繞過 Gemini 額度保護防線**：
+   - 任務日誌文字量大且查閱頻繁，為守護玩家寶貴的 Gemini API 每分鐘免費額度（Rate Limit），任務翻譯會自動改由 **LM Studio 本地模型**、**有道翻譯** 或 **Google 翻譯** 執行，無後顧之憂。
+4. **完整涵蓋各類任務介面**：
+   - **`JournalDetail`（任務詳細說明欄）**：日誌面板與地圖任務點擊彈出的任務詳細設定、步驟目標，以及「前回冒險錄 / 歷程回顧 (JournalRecap)」長文。
+   - **`JournalAccept`（接取任務確認視窗）**：NPC 接取任務時的羊皮紙委託書說明內容。
+   - **`JournalResult`（回報任務結算視窗）**：任務完成交差時的獎勵與結算劇情總結。
+5. **任務節點除錯診斷器 (Journal Inspector)**：
+   - 設定視窗提供獨立「任務除錯 (Inspector)」分頁。
+   - 深入檢測遊戲原生 UI 樹、組件節點（Component Node >= 1000）、JournalCanvas 畫布項目與按鈕文字節點。
+   - 支援即時在螢幕上以彩色邊界框標記節點座標、寬高、Node ID 與提取文字，診斷覆蓋狀況一目了然。
+
+---
+
+## 全聊天頻道即時翻譯 (Chat Translation)
+
+- **細緻頻道過濾**：自由勾選說話 (Say)、小隊 (Party)、部隊 (FC)、大喊 (Yell/Shout)、密語 (Tell)、團隊 (Alliance)、所有通訊貝 (LS 1~8)、跨服通訊貝 (CWLS 1~8) 以及各類系統提示訊息。
+- **攔截並隱藏原生遊戲訊息 (ChatSuppressOriginal)**：
+  - 勾選後，符合條件的日/英文聊天訊息會直接被攔截，等翻譯完成後只輸出中文譯文，徹底告別「日文一行、中文一行」的冗長洗版。
+  - 內建安全還原機制：若訊息無需翻譯或翻譯發生異常，自動還原印出原始訊息，不漏任何重要通知。
+- **雙重視窗模式**：
+  - 輸出至遊戲聊天視窗：支援原色前綴標籤高亮與 Echo 獨立頻道分流。
+  - 獨立歷史視窗：輸入 `/tataru chat` 隨時喚出懸浮歷史清單，支援全文搜尋與即時過濾。
+
+---
+
+## 遊戲字型缺字保護與自訂字形映射表 (Custom Glyph Mappings)
+
+- **AXIS 字型缺字預防 (GlyphFolder)**：比對客戶端字元庫，將未收錄漢字轉為同形字或相似字（如「薫」->「薫」），防止遊戲畫面出現「?」或缺字方塊。
+- **自訂字形映射表編輯器**：
+  - 針對日語客戶端容易缺字的情況（如「卡」字在日版聊天框會變成「＝」等號），玩家可自訂將「卡」替換為片假名「カ」等相似字。
+  - 內建常用推薦字庫一鍵填入。
+  - 附帶即時測試預覽框 (Live Preview)，輸入任何字詞立即檢驗替換成果。
 
 ---
 
@@ -83,10 +121,11 @@
 - **獨立儲存檔案 `CustomGlossary.json`**：對照表儲存於獨立檔案（`%APPDATA%\XIVLauncher\pluginConfigs\DalamudTataru\CustomGlossary.json`），與包含 API Key 的插件總設定檔完全隔離，可安心將對照表檔案分享給好友或公會隊友。
 - **獨立彈出視窗編輯**：支援一鍵開啟為獨立視窗（`/tataru glossary`），可自由拖曳至副螢幕或全螢幕縮放，多螢幕對照零負擔。
 - **手動儲存與還原控制**：取消容易手滑誤觸的即時自動儲存，編輯期間提供記憶體暫存管理，點擊「💾 儲存至 CustomGlossary.json」才寫入生效，並提供「🔄 放棄修改 / 重新載入」一鍵復原。
-- **雙重精準套用管線**：
+- **多重精準套用管線**：
   1. **說話者名稱優先取代**：無論日服（日語）或國際服（英語），優先以自訂對照表為準。
-  2. **AI Prompt 動態注入**：當對話或說話者命中自訂術語時，自動將對照規則注入 Gemini / LM Studio 提示詞，讓 AI 翻譯時依據文脈自然譯出，而非事後粗暴字串硬轉。
-  3. **終端譯後校正**：確保譯文絕不漏翻或殘留日文/英文未譯名詞。
+  2. **譯前預先替換 (Pre-Translation Replacement)**：AI 翻譯前先對目標術語進行結構保護，防止 AI 隨意發揮。
+  3. **AI Prompt 動態注入**：當對話或說話者命中自訂術語時，自動將對照規則注入 Gemini / LM Studio 提示詞，讓 AI 依據文脈自然譯出。
+  4. **終端譯後校正**：確保譯文絕不漏翻或殘留未譯名詞。
 - **經典範本一鍵載入**：內建 22+ 筆拂曉幹部（塔塔露、阿爾菲諾等）、7.0 核心角色（烏克拉瑪特、圖萊尤拉等）與世界觀專有名詞（光之戰士、拂曉血盟、乙太、蠻神、艾歐澤亞等）。
 - **即時對照測試器 (Live Tester)**：在編輯器底部可即時輸入說話者與台詞進行規則測試，確認取代結果與注入規則。
 - **JSON / CSV 匯入與匯出**：完整支援文字框複製貼上、備份與批次匯入（支援合併或覆蓋）。
@@ -98,7 +137,7 @@
 ```
 dalamud-tataru/
 ├── Data/
-│   ├── jp-ch-name.json             # 日中 NPC/人名對照表 (來自 Tataru 原版)
+│   ├── jp-ch-name.json             # 日中 NPC/人名/地名對照表 (來自 Tataru 原版，含房區擴充)
 │   ├── en-ch-name.json             # 英中 NPC/專有名詞對照表
 │   ├── after-translation-cht.json  # 繁體中文譯後名詞校正表
 │   └── after-translation-chs.json  # 簡體中文譯後名詞校正表
@@ -107,27 +146,30 @@ dalamud-tataru/
 │   ├── CustomGlossaryEntry.cs      # 自訂多語名詞對照表資料結構
 │   ├── CustomGlyphEntry.cs         # 自訂缺字摺疊替換資料結構
 │   ├── ChatChannelHelper.cs        # 聊天頻道與系統訊息分類/色彩對照定義
-│   └── ChatHistoryEntry.cs         # 聊天翻譯歷史資料結構
+│   ├── ChatHistoryEntry.cs         # 聊天翻譯歷史資料結構
+│   └── QuestHoverInfo.cs           # 任務說明文字懸浮翻譯資料結構
 ├── Services/
 │   ├── DialogueWatcher.cs          # 遊戲原生對話/字幕視窗監聽器 (Talk / Subtitle / BattleTalk)
-│   ├── QuestJournalWatcher.cs      # 任務詳細說明欄與接取/回報視窗原生替換服務 (JournalDetail / Accept / Result)
-│   ├── ChatTranslationService.cs   # 對話欄與系統訊息即時監聽、非同步翻譯與輸出服務
+│   ├── QuestJournalWatcher.cs      # 任務詳細說明欄與接取/回報視窗滑鼠懸浮監聽服務
+│   ├── JournalInspector.cs         # 任務日誌 UI 節點深層掃描與除錯診斷器
+│   ├── ChatTranslationService.cs   # 對話欄與系統訊息即時監聽、原生攔截、非同步翻譯與輸出服務
 │   ├── GlyphFolder.cs              # 遊戲原生 AXIS 字型缺字檢測與相似字摺疊服務
 │   ├── GlyphFolder.FoldTable.cs    # 靜態字元映射字典檔
-│   ├── GeminiTranslator.cs         # Google Gemini REST API 非同步翻譯與快取服務
+│   ├── GeminiTranslator.cs         # Google Gemini REST API 非同步翻譯、配額分流與快取服務
 │   ├── LmStudioTranslator.cs       # LM Studio 本地大模型翻譯服務
 │   ├── YoudaoTranslator.cs         # 有道線上翻譯與備用防線服務
 │   ├── GoogleTranslator.cs         # Google 免費公共線上翻譯服務
-│   ├── GlossaryManager.cs          # 專有名詞讀取、自訂對照表持久化與文本校正服務
+│   ├── GlossaryManager.cs          # 專有名詞讀取、譯前替換、自訂對照表持久化與文本校正服務
 │   └── PlayerNameHelper.cs         # 玩家自身角色名稱防洩漏保護工具
 ├── Windows/
-│   ├── ConfigWindow.cs             # 插件設定介面 (AI、聊天頻道、任務說明、自訂對照表、外觀)
+│   ├── ConfigWindow.cs             # 插件設定介面 (AI、聊天頻道、任務懸浮、自訂對照表、外觀、除錯)
 │   ├── ChatHistoryWindow.cs        # 獨立聊天與系統翻譯歷史紀錄懸浮視窗
 │   ├── GlossaryEditorWindow.cs     # 獨立自訂名詞對照表編輯器視窗 (支援手動儲存與測試)
 │   ├── SubtitleOverlayWindow.cs    # ImGui 原生字幕懸浮視窗
-│   └── DialogueReplaceOverlayWindow.cs # 原生對話框覆蓋視窗 (羊皮紙/原生泡泡模式)
+│   ├── DialogueReplaceOverlayWindow.cs # 原生對話框覆蓋視窗 (羊皮紙/原生泡泡模式)
+│   └── QuestHoverOverlayWindow.cs  # 任務說明內容滑鼠懸停 ImGui 翻譯懸浮視窗
 ├── Configuration.cs                # 插件設定資料結構與持久化
-├── Plugin.cs                       # Dalamud 插件主入口
+├── Plugin.cs                       # Dalamud 插件主入口與指令註冊
 ├── DalamudTataru.csproj            # 專案建置檔 (基於 Dalamud.NET.Sdk)
 └── DalamudTataru.json              # Dalamud 插件 Manifest
 ```
@@ -169,23 +211,24 @@ dalamud-tataru/
 | :--- | :--- |
 | `/tataru on` / `/tataru off` | **開啟 / 關閉對話翻譯功能**（狀態將永久保存，下次啟動自動套用） |
 | `/tataru status` | 查看當前翻譯開關、主翻譯引擎與視窗模式狀態 |
-| `/tataru` 或 `/tataru config` | 開啟 / 關閉主設定視窗 |
-| `/tataru chat` | 開啟 / 關閉**獨立對話與系統翻譯紀錄懸浮窗** |
-| `/tataru glossary` 或 `/tataru dict` | 開啟 / 關閉**獨立自訂名詞對照表編輯器視窗** |
+| `/tataru` 或 `/tataru config` / `/tataru settings` | 開啟 / 關閉主設定視窗 |
 | `/tataru toggle` | 開啟 / 關閉字幕視窗（可用於手動調整視窗位置） |
-| `/tataru replace` | 開關原生對話框覆蓋模式（直接在原生對話框覆蓋中文譯文，支援 `on`/`off`） |
-| `/tataru gemini on` | 切換主翻譯引擎為 Gemini |
-| `/tataru gemini off` | 切換主翻譯引擎為有道 (Youdao) |
-| `/tataru LMS` | 開關或切換主翻譯引擎為 LM Studio 本地模型（支援 `/tataru LMS on` / `/tataru LMS off`） |
-| `/tataru gemini` | 在 Gemini 與有道翻譯之間切換 |
-| `/tataru clearcache` | 清除目前記憶體中所有的對話翻譯暫存快取 |
+| `/tataru replace [on\|off]` | 開關原生對話框覆蓋模式（直接在原生對話框覆蓋中文譯文） |
+| `/tataru gemini [on\|off]` | 切換主翻譯引擎為 Gemini 或在 Gemini 與有道之間切換 |
+| `/tataru LMS [on\|off]` | 切換主翻譯引擎為本機 LM Studio 大模型 |
+| `/tataru youdao` | 切換主翻譯引擎為有道 (Youdao) |
+| `/tataru google` | 切換主翻譯引擎為 Google Translate |
+| `/tataru chat` | 開啟 / 關閉**獨立對話與系統翻譯紀錄懸浮窗** |
+| `/tataru glossary` 或 `/tataru dict` / `/tataru custom` | 開啟 / 關閉**獨立自訂名詞對照表編輯器視窗** |
+| `/tataru clearcache` 或 `/tataru clear` | 清除目前記憶體中所有的對話翻譯暫存快取 |
 | `/tataru update` | 直接從 Tataru-Assistant 雲端更新最新專有名詞與譯後修飾文本庫 |
+| `/tataru help` | 於遊戲聊天框列出常用指令說明 |
 
 ---
 
 ## 致敬與感謝
 
 - **[winw1010/tataru-assistant](https://github.com/winw1010/tataru-assistant)**：感謝 Tataru Assistant 團隊為 FF14 中文社群長期整理與維護的專有名詞庫與譯名對照表。
-- **[lokinmodar/Echoglossian](https://github.com/lokinmodar/Echoglossian)**：感謝 Echoglossian 開發團隊，本插件的任務詳細說明欄與接取/回報視窗原生替換機制（`JournalDetail` / `JournalAccept` / `JournalResult`）深獲其架構啟發與技術借鏡。
+- **[lokinmodar/Echoglossian](https://github.com/lokinmodar/Echoglossian)**：感謝 Echoglossian 開發團隊，本插件的任務詳細說明欄與接取/回報視窗監聽機制（`JournalDetail` / `JournalAccept` / `JournalResult`）深獲其架構啟發與技術借鏡。
 - **[kelvin124124/ChatTranslated](https://github.com/kelvin124124/ChatTranslated)**：感謝 ChatTranslated 開發團隊，為本插件的聊天頻道即時監聽、色彩標籤重現與訊息分流過濾提供了極具價值的設計參考。
 - **[Dalamud](https://github.com/goatcorp/Dalamud)**：感謝 Goatcorp 與 Dalamud 團隊為 Final Fantasy XIV 打造的卓越插件生態與開發框架。
