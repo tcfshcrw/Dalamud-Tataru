@@ -39,24 +39,22 @@ public class QuestHoverOverlayWindow : Window
         IsOpen = true;
     }
 
-    public override bool PreOpenCheck()
+    public override void PreOpenCheck()
     {
         IsOpen = true;
 
         if (!config.Enabled || !config.QuestHoverTranslate)
         {
-            return false;
+            return;
         }
 
         var mousePos = ImGui.GetIO().MousePos;
         questWatcher.UpdateHover(mousePos);
-
-        return questWatcher.CurrentHover != null;
     }
 
     public override bool DrawConditions()
     {
-        return questWatcher.CurrentHover != null;
+        return config.Enabled && config.QuestHoverTranslate && questWatcher.CurrentHover != null;
     }
 
     public override void PreDraw()
