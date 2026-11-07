@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Dalamud.Configuration;
 using Dalamud.Plugin;
 using DalamudTataru.Models;
+using Newtonsoft.Json;
 
 namespace DalamudTataru;
 
@@ -52,6 +54,8 @@ public class Configuration : IPluginConfiguration
     public bool ShowStartupNotification { get; set; } = true;
     public bool EnableCustomGlossary { get; set; } = true;
     private List<CustomGlossaryEntry>? customGlossaryEntries;
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    [System.Text.Json.Serialization.JsonObjectCreationHandling(System.Text.Json.Serialization.JsonObjectCreationHandling.Replace)]
     public List<CustomGlossaryEntry> CustomGlossaryEntries
     {
         get => customGlossaryEntries ??= new();
@@ -72,16 +76,22 @@ public class Configuration : IPluginConfiguration
     public bool ChatFilterLinks { get; set; } = true;
     public bool ChatEnableGlyphFolding { get; set; } = true;
     private List<DalamudTataru.Models.CustomGlyphEntry>? customGlyphEntries;
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    [System.Text.Json.Serialization.JsonObjectCreationHandling(System.Text.Json.Serialization.JsonObjectCreationHandling.Replace)]
     public List<DalamudTataru.Models.CustomGlyphEntry> CustomGlyphEntries
     {
         get => customGlyphEntries ??= new();
         set => customGlyphEntries = value ?? new();
     }
     private List<Dalamud.Game.Text.XivChatType>? selectedChatTypes;
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    [System.Text.Json.Serialization.JsonObjectCreationHandling(System.Text.Json.Serialization.JsonObjectCreationHandling.Replace)]
     public List<Dalamud.Game.Text.XivChatType> SelectedChatTypes
     {
         get => selectedChatTypes ??= new List<Dalamud.Game.Text.XivChatType>(ChatChannelHelper.DefaultSelectedTypes);
-        set => selectedChatTypes = value ?? new List<Dalamud.Game.Text.XivChatType>(ChatChannelHelper.DefaultSelectedTypes);
+        set => selectedChatTypes = value != null
+            ? value.Distinct().ToList()
+            : new List<Dalamud.Game.Text.XivChatType>(ChatChannelHelper.DefaultSelectedTypes);
     }
 
     // Hook Toggles
@@ -131,11 +141,16 @@ public class Configuration : IPluginConfiguration
     public Vector2 CustomOverlaySize { get; set; } = new Vector2(600, 140);
 
     [NonSerialized]
+    [JsonIgnore]
     private IDalamudPluginInterface? pluginInterface;
 
     public void Initialize(IDalamudPluginInterface pluginInterface)
     {
         this.pluginInterface = pluginInterface;
+        if (this.selectedChatTypes != null)
+        {
+            this.selectedChatTypes = this.selectedChatTypes.Distinct().ToList();
+        }
     }
 
     public void Save()
