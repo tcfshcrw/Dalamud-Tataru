@@ -18,6 +18,10 @@
   - **智慧排除任務標題**：刻意保留任務原有名稱（不翻譯任務標題），只翻譯背景故事與目標內容，確保玩家能無縫對照外部 Wiki 攻略與遊戲原地圖導航。
   - **Gemini API 額度保護防線**：任務說明文字繁多，為避免瞬間耗盡寶貴的 Gemini 每分鐘免費請求額度（Rate Limit），任務翻譯自動限定由 **LM Studio 本地大模型**、**有道翻譯 (Youdao)** 或 **Google 翻譯** 執行，無額度負擔。
   - **支援三大任務視窗與歷程回顧**：全面支援 `JournalDetail`（日誌詳細說明欄與前回冒險錄 / 歷程回顧長文）、`JournalAccept`（接取任務委託書）、`JournalResult`（回報任務結算）。
+- **劇情與 NPC 對話選項懸浮翻譯 (SelectString / SelectIconString)**：
+  - 遊戲中出現分支對話選項（如「你要怎麼回答？」）或圖示選項時，自動於原生選項框旁邊以 ImGui 懸浮視窗展示即時中文翻譯。
+  - **智慧自適應定位**：優先吸附於原生選項框右側，若超出螢幕邊界則智慧自動切換為靠左側吸附，支援位置微調與字體縮放。
+  - **清晰標號與原文對照**：以清楚的 1、2、3 數字標號對應原生選項，支援可選的日文/英文原文對照，完全不影響遊戲原生點擊。
 - **內建任務節點深層診斷除錯器 (Journal Inspector)**：
   - 提供專屬「任務除錯 (Inspector)」面板，具備遊戲原生 UI 樹、組件節點（Component Node >= 1000）、JournalCanvas 畫布項目與按鈕文字節點深層掃描能力。
   - 支援在遊戲螢幕上以彩色邊界框 (Bounding Box) 視覺化標記節點位置、Node ID、尺寸與偵測狀態，方便排查與確認文字覆蓋範圍。
@@ -213,6 +217,7 @@ dalamud-tataru/
 | `/tataru status` | 查看當前翻譯開關、主翻譯引擎與視窗模式狀態 |
 | `/tataru` 或 `/tataru config` / `/tataru settings` | 開啟 / 關閉主設定視窗 |
 | `/tataru toggle` | 開啟 / 關閉字幕視窗（可用於手動調整視窗位置） |
+| `/tataru choices` 或 `/tataru select` | 開啟 / 關閉**對話選項翻譯視窗預覽**（用於調整位置與縮放比例） |
 | `/tataru replace [on\|off]` | 開關原生對話框覆蓋模式（直接在原生對話框覆蓋中文譯文） |
 | `/tataru gemini [on\|off]` | 切換主翻譯引擎為 Gemini 或在 Gemini 與有道之間切換 |
 | `/tataru LMS [on\|off]` | 切換主翻譯引擎為本機 LM Studio 大模型 |

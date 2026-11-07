@@ -51,6 +51,8 @@ public class Plugin : IDalamudPlugin
     private readonly JournalInspector journalInspector;
     private readonly SubtitleOverlayWindow overlayWindow;
     private readonly DialogueReplaceOverlayWindow replaceOverlayWindow;
+    private readonly SelectStringOverlayWindow selectStringOverlayWindow;
+    private readonly SelectStringWatcher selectStringWatcher;
     private readonly GlossaryEditorWindow glossaryEditorWindow;
     private readonly ChatHistoryWindow chatHistoryWindow;
     private readonly ConfigWindow configWindow;
@@ -112,12 +114,19 @@ public class Plugin : IDalamudPlugin
         chatTranslationService = new ChatTranslationService(Configuration, translator, ChatGui, ClientState, Condition, PluginLog);
         overlayWindow = new SubtitleOverlayWindow(Configuration, CjkFontHandle);
         replaceOverlayWindow = new DialogueReplaceOverlayWindow(Configuration, dialogueWatcher, CjkFontHandle);
+        selectStringWatcher = new SelectStringWatcher(Framework, GameGui, PluginLog, Configuration);
+        selectStringWatcher.OnSelectStringChanged += HandleSelectStringChanged;
+        selectStringWatcher.OnSelectStringPositionUpdated += HandleSelectStringPositionUpdated;
+        selectStringWatcher.OnSelectStringClosed += HandleSelectStringClosed;
+        selectStringOverlayWindow = new SelectStringOverlayWindow(Configuration, CjkFontHandle);
+
         glossaryEditorWindow = new GlossaryEditorWindow(Configuration, glossaryManager, CjkFontHandle);
         chatHistoryWindow = new ChatHistoryWindow(Configuration, chatTranslationService, CjkFontHandle);
-        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, replaceOverlayWindow, dialogueWatcher, glossaryManager, glossaryEditorWindow, chatTranslationService, chatHistoryWindow, CjkFontHandle, questJournalWatcher, journalInspector);
+        configWindow = new ConfigWindow(Configuration, translator, lmStudioTranslator, youdaoTranslator, googleTranslator, overlayWindow, replaceOverlayWindow, dialogueWatcher, glossaryManager, glossaryEditorWindow, chatTranslationService, chatHistoryWindow, CjkFontHandle, questJournalWatcher, journalInspector, selectStringOverlayWindow);
 
         WindowSystem.AddWindow(overlayWindow);
         WindowSystem.AddWindow(replaceOverlayWindow);
+        WindowSystem.AddWindow(selectStringOverlayWindow);
         WindowSystem.AddWindow(configWindow);
         WindowSystem.AddWindow(glossaryEditorWindow);
         WindowSystem.AddWindow(chatHistoryWindow);
@@ -254,6 +263,85 @@ public class Plugin : IDalamudPlugin
         replaceOverlayWindow.CloseDialogue();
     }
 
+    private void HandleSelectStringChanged(SelectStringEntry entry)
+    {
+        if (!Configuration.Enabled || !Configuration.TranslateSelectString) return;
+
+        selectStringOverlayWindow.UpdateEntry(entry);
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                var tasks = new List<Task>();
+
+                if (!string.IsNullOrWhiteSpace(entry.Prompt))
+                {
+                    tasks.Add(Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var (_, translatedPrompt) = await translator.TranslateAsync(string.Empty, entry.Prompt);
+                            entry.TranslatedPrompt = translatedPrompt;
+                        }
+                        catch (Exception ex)
+                        {
+                            PluginLog.Warning(ex, "Failed to translate SelectString prompt.");
+                            entry.TranslatedPrompt = entry.Prompt;
+                        }
+                        finally
+                        {
+                            entry.IsPromptTranslating = false;
+                        }
+                    }));
+                }
+
+                foreach (var opt in entry.Options)
+                {
+                    if (string.IsNullOrWhiteSpace(opt.OriginalText))
+                    {
+                        opt.IsTranslating = false;
+                        continue;
+                    }
+
+                    tasks.Add(Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var (_, translatedText) = await translator.TranslateAsync(string.Empty, opt.OriginalText);
+                            opt.TranslatedText = translatedText;
+                        }
+                        catch (Exception ex)
+                        {
+                            PluginLog.Warning(ex, $"Failed to translate SelectString option: {opt.OriginalText}");
+                            opt.TranslatedText = opt.OriginalText;
+                        }
+                        finally
+                        {
+                            opt.IsTranslating = false;
+                        }
+                    }));
+                }
+
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception ex)
+            {
+                PluginLog.Error(ex, "Error occurred during SelectString options translation.");
+            }
+        });
+    }
+
+    private void HandleSelectStringPositionUpdated(Vector2 pos, Vector2 size)
+    {
+        selectStringOverlayWindow.UpdatePosition(pos, size);
+    }
+
+    private void HandleSelectStringClosed()
+    {
+        selectStringOverlayWindow.Close();
+    }
+
     public void SetEnabled(bool enable)
     {
         Configuration.Enabled = enable;
@@ -263,7 +351,8 @@ public class Plugin : IDalamudPlugin
         {
             dialogueWatcher.RestoreTalkAddonState();
             HandleDialogueClosed();
-            ChatGui.Print("[Tataru] 對話翻譯功能已關閉 (含覆蓋) (Translation disabled)");
+            HandleSelectStringClosed();
+            ChatGui.Print("[Tataru] 對話翻譯功能已關閉 (含覆蓋與選項) (Translation disabled)");
         }
         else
         {
@@ -330,6 +419,12 @@ public class Plugin : IDalamudPlugin
                     overlayWindow.IsOpen = overlayWindow.IsManualPreview;
                     ChatGui.Print($"[Tataru] 字幕懸浮視窗: {(overlayWindow.IsManualPreview ? "已開啟 (預覽與調整模式)" : "已關閉")}");
                 }
+                break;
+
+            case "choices" or "select":
+                selectStringOverlayWindow.IsManualPreview = !selectStringOverlayWindow.IsManualPreview;
+                selectStringOverlayWindow.IsOpen = selectStringOverlayWindow.IsManualPreview;
+                ChatGui.Print($"[Tataru] 對話選項翻譯視窗: {(selectStringOverlayWindow.IsManualPreview ? "已開啟 (預覽與調整模式)" : "已關閉")}");
                 break;
 
             case "hover":
@@ -579,6 +674,7 @@ public class Plugin : IDalamudPlugin
         {
             overlayWindow.IsConfigOpen = false;
             replaceOverlayWindow.IsConfigOpen = false;
+            selectStringOverlayWindow.IsConfigOpen = false;
         }
 
         WindowSystem.Draw();
@@ -613,6 +709,12 @@ public class Plugin : IDalamudPlugin
         dialogueWatcher.OnDialogueChanged -= HandleDialogueChanged;
         dialogueWatcher.OnDialogueClosed -= HandleDialogueClosed;
         dialogueWatcher.Dispose();
+
+        selectStringWatcher.OnSelectStringChanged -= HandleSelectStringChanged;
+        selectStringWatcher.OnSelectStringPositionUpdated -= HandleSelectStringPositionUpdated;
+        selectStringWatcher.OnSelectStringClosed -= HandleSelectStringClosed;
+        selectStringWatcher.Dispose();
+
         questJournalWatcher.Dispose();
         chatTranslationService.Dispose();
 

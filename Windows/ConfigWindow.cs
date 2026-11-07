@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.IO;
@@ -31,6 +31,7 @@ public class ConfigWindow : Window
     private readonly IFontHandle? fontHandle;
     private readonly QuestJournalWatcher? questJournalWatcher;
     private readonly JournalInspector? journalInspector;
+    private readonly SelectStringOverlayWindow? selectStringOverlayWindow;
     private List<JournalNodeInspectionInfo>? lastInspectionResults = null;
     private string inspectorStatusMsg = string.Empty;
     private string inspectorFilter = string.Empty;
@@ -101,7 +102,7 @@ public class ConfigWindow : Window
         "自訂模型 (Custom)"
     };
 
-    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, DialogueReplaceOverlayWindow replaceOverlayWindow, DialogueWatcher dialogueWatcher, GlossaryManager glossary, GlossaryEditorWindow? glossaryEditorWindow = null, ChatTranslationService? chatTranslationService = null, ChatHistoryWindow? chatHistoryWindow = null, IFontHandle? fontHandle = null, QuestJournalWatcher? questJournalWatcher = null, JournalInspector? journalInspector = null)
+    public ConfigWindow(Configuration config, GeminiTranslator translator, LmStudioTranslator lmStudio, YoudaoTranslator youdao, GoogleTranslator google, SubtitleOverlayWindow overlayWindow, DialogueReplaceOverlayWindow replaceOverlayWindow, DialogueWatcher dialogueWatcher, GlossaryManager glossary, GlossaryEditorWindow? glossaryEditorWindow = null, ChatTranslationService? chatTranslationService = null, ChatHistoryWindow? chatHistoryWindow = null, IFontHandle? fontHandle = null, QuestJournalWatcher? questJournalWatcher = null, JournalInspector? journalInspector = null, SelectStringOverlayWindow? selectStringOverlayWindow = null)
         : base("Tataru Native Translator 設定###TataruConfigWindow")
     {
         this.config = config;
@@ -119,6 +120,7 @@ public class ConfigWindow : Window
         this.fontHandle = fontHandle;
         this.questJournalWatcher = questJournalWatcher;
         this.journalInspector = journalInspector;
+        this.selectStringOverlayWindow = selectStringOverlayWindow;
 
         Size = new Vector2(760, 680);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -887,6 +889,15 @@ public class ConfigWindow : Window
             config.Save();
         }
 
+        var selectString = config.TranslateSelectString;
+        if (ImGui.Checkbox("劇情與 NPC 分支對話選項 (SelectString / SelectIconString)", ref selectString))
+        {
+            config.TranslateSelectString = selectString;
+            config.Save();
+        }
+        ImGui.SameLine();
+        ImGui.TextDisabled("(在選項框旁邊以 ImGui 懸浮視窗條列中文翻譯)");
+
         var subtitle = config.TranslateSubtitle;
         if (ImGui.Checkbox("過場動畫與 CG 字幕 (Subtitle)", ref subtitle))
         {
@@ -1610,6 +1621,69 @@ public class ConfigWindow : Window
         if (ImGui.Button("清除翻譯快取"))
         {
             translator.ClearCache();
+        }
+
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        ImGui.TextColored(new Vector4(0.4f, 0.8f, 1.0f, 1.0f), "對話選項懸浮視窗外觀設定 (SelectString Overlay)");
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        var selectStringEnabled = config.TranslateSelectString;
+        if (ImGui.Checkbox("啟用選項旁邊懸浮翻譯視窗 (SelectString / SelectIconString)##cfgSelectString", ref selectStringEnabled))
+        {
+            config.TranslateSelectString = selectStringEnabled;
+            config.Save();
+        }
+
+        if (config.TranslateSelectString)
+        {
+            ImGui.Indent(20f);
+
+            var showOrig = config.SelectStringShowOriginal;
+            if (ImGui.Checkbox("顯示原文選項對照 (日文/英文)##cfgSelectStringOrig", ref showOrig))
+            {
+                config.SelectStringShowOriginal = showOrig;
+                config.Save();
+            }
+            ImGui.TextDisabled("在翻譯選項下方附帶顯示原文，方便快速對照遊戲原生按鈕。");
+
+            var lockRight = config.SelectStringLockToRight;
+            if (ImGui.Checkbox("優先吸附於選項框右側##cfgSelectStringLockRight", ref lockRight))
+            {
+                config.SelectStringLockToRight = lockRight;
+                config.Save();
+            }
+            ImGui.TextDisabled("預設勾選。若選項框靠右使懸浮窗超出螢幕邊界，系統會智慧自動切換為靠左側吸附。");
+
+            var scale = config.SelectStringScale;
+            if (ImGui.SliderFloat("選項文字與視窗縮放比例##cfgSelectStringScale", ref scale, 0.5f, 2.5f, "%.2f 倍"))
+            {
+                config.SelectStringScale = Math.Clamp(scale, 0.5f, 2.5f);
+                config.Save();
+            }
+
+            var offset = config.SelectStringOffset;
+            if (ImGui.DragFloat2("選項視窗位置微調偏移 (X, Y)##cfgSelectStringOffset", ref offset, 1.0f, -500f, 500f, "%.0f px"))
+            {
+                config.SelectStringOffset = offset;
+                config.Save();
+            }
+            ImGui.TextDisabled("可手動設定向左/右/上/下偏移像素，微調至最舒適的閱讀位置。");
+
+            if (selectStringOverlayWindow != null)
+            {
+                bool preview = selectStringOverlayWindow.IsManualPreview;
+                if (ImGui.Checkbox("開啟選項翻譯視窗預覽 (可預覽效果與調整位置)##cfgSelectStringPreview", ref preview))
+                {
+                    selectStringOverlayWindow.IsManualPreview = preview;
+                    selectStringOverlayWindow.IsOpen = preview;
+                }
+            }
+
+            ImGui.Unindent(20f);
         }
     }
 
