@@ -890,7 +890,7 @@ public class ConfigWindow : Window
         }
 
         var selectString = config.TranslateSelectString;
-        if (ImGui.Checkbox("劇情與 NPC 分支對話選項 (SelectString / SelectIconString)", ref selectString))
+        if (ImGui.Checkbox("劇情過場與 NPC 分支對話選項 (CutSceneSelectString / SelectString)", ref selectString))
         {
             config.TranslateSelectString = selectString;
             config.Save();
@@ -1632,7 +1632,7 @@ public class ConfigWindow : Window
         ImGui.Spacing();
 
         var selectStringEnabled = config.TranslateSelectString;
-        if (ImGui.Checkbox("啟用選項旁邊懸浮翻譯視窗 (SelectString / SelectIconString)##cfgSelectString", ref selectStringEnabled))
+        if (ImGui.Checkbox("啟用選項旁邊懸浮翻譯視窗 (CutSceneSelectString / SelectString)##cfgSelectString", ref selectStringEnabled))
         {
             config.TranslateSelectString = selectStringEnabled;
             config.Save();
