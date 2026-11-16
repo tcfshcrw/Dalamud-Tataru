@@ -186,7 +186,7 @@ public class SelectStringOverlayWindow : Window
                     promptDisplay = currentEntry.Prompt;
                 }
 
-                ImGui.TextColored(config.SpeakerColor, $"💬 提示：{promptDisplay}");
+                ImGui.TextColored(config.SpeakerColor, $"提示：{promptDisplay}");
 
                 if (config.SelectStringShowOriginal && !string.IsNullOrWhiteSpace(currentEntry.Prompt) && currentEntry.Prompt != currentEntry.TranslatedPrompt)
                 {
@@ -221,7 +221,7 @@ public class SelectStringOverlayWindow : Window
 
                 if (config.SelectStringShowOriginal && !string.IsNullOrWhiteSpace(opt.OriginalText) && opt.OriginalText != opt.TranslatedText)
                 {
-                    ImGui.TextColored(config.OriginalTextColor, $"   ↳ {opt.OriginalText}");
+                    ImGui.TextColored(config.OriginalTextColor, $"   原：{opt.OriginalText}");
                 }
 
                 if (i < currentEntry.Options.Count - 1)
@@ -242,7 +242,7 @@ public class SelectStringOverlayWindow : Window
 
     private void DrawPreview()
     {
-        ImGui.TextColored(config.SpeakerColor, "💬 提示：你想怎麼回答？ (選項翻譯預覽)");
+        ImGui.TextColored(config.SpeakerColor, "提示：你想怎麼回答？ (選項翻譯預覽)");
         if (config.SelectStringShowOriginal)
         {
             ImGui.TextColored(config.OriginalTextColor, "   原：どう答える？");
@@ -253,21 +253,21 @@ public class SelectStringOverlayWindow : Window
         ImGui.TextColored(config.TextColor, "1. 贊成他的想法");
         if (config.SelectStringShowOriginal)
         {
-            ImGui.TextColored(config.OriginalTextColor, "   ↳ その意見に賛成だ");
+            ImGui.TextColored(config.OriginalTextColor, "   原：その意見に賛成だ");
         }
         ImGui.Spacing();
 
         ImGui.TextColored(config.TextColor, "2. 委婉地表示反對");
         if (config.SelectStringShowOriginal)
         {
-            ImGui.TextColored(config.OriginalTextColor, "   ↳ 少し考えさせてほしい");
+            ImGui.TextColored(config.OriginalTextColor, "   原：少し考えさせてほしい");
         }
         ImGui.Spacing();
 
         ImGui.TextColored(config.TextColor, "3. 保持沉默並點頭");
         if (config.SelectStringShowOriginal)
         {
-            ImGui.TextColored(config.OriginalTextColor, "   ↳ 無言で頷く");
+            ImGui.TextColored(config.OriginalTextColor, "   原：無言で頷く");
         }
     }
 }
