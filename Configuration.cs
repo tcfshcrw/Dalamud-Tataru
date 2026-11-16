@@ -99,7 +99,7 @@ public class Configuration : IPluginConfiguration
     public bool TranslateBattleTalk { get; set; } = true;
     public bool TranslateSubtitle { get; set; } = true;
     public bool TranslateSelectString { get; set; } = true;
-    public bool SelectStringShowOriginal { get; set; } = true;
+    public bool SelectStringShowOriginal { get; set; } = false;
     public bool SelectStringLockToRight { get; set; } = true;
     public Vector2 SelectStringOffset { get; set; } = Vector2.Zero;
     public float SelectStringScale { get; set; } = 1.0f;

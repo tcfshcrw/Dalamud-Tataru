@@ -13,6 +13,7 @@ public class SelectStringOverlayWindow : Window
     private readonly IFontHandle? fontHandle;
     private SelectStringEntry? currentEntry;
     private bool isActive = false;
+    private float lastWindowWidth = 0f;
 
     public bool IsConfigOpen { get; set; } = false;
     public bool IsManualPreview { get; set; } = false;
@@ -31,8 +32,8 @@ public class SelectStringOverlayWindow : Window
 
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(180, 50),
-            MaximumSize = new Vector2(1000, 1200)
+            MinimumSize = new Vector2(100, 40),
+            MaximumSize = new Vector2(1600, 1200)
         };
 
         IsOpen = false;
@@ -41,6 +42,7 @@ public class SelectStringOverlayWindow : Window
     public void UpdateEntry(SelectStringEntry entry)
     {
         this.currentEntry = entry;
+        this.lastWindowWidth = 0f;
         this.isActive = true;
         this.IsOpen = true;
     }
@@ -88,7 +90,9 @@ public class SelectStringOverlayWindow : Window
             var viewport = ImGui.GetMainViewport();
             float screenW = viewport.Size.X;
             float scale = Math.Clamp(config.SelectStringScale, 0.5f, 2.5f);
-            float estimatedW = Math.Max(260f, currentEntry.AddonSize.X) * scale;
+            float estimatedW = lastWindowWidth > 10f
+                ? lastWindowWidth
+                : Math.Max(200f, currentEntry.AddonSize.X) * scale;
 
             float targetX;
             if (config.SelectStringLockToRight)
@@ -135,14 +139,27 @@ public class SelectStringOverlayWindow : Window
             var scale = Math.Clamp(config.SelectStringScale, 0.5f, 2.5f);
             ImGui.SetWindowFontScale(scale);
 
-            float wrapWidth = Math.Max(220f, 300f * scale);
-            ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + wrapWidth);
+            var viewport = ImGui.GetMainViewport();
+            float paddingX = ImGui.GetStyle().WindowPadding.X * 2f;
+            float maxWrapWidth = Math.Max(400f, viewport.Size.X * 0.65f);
+            if (isActive && currentEntry != null)
+            {
+                float rightSpace = viewport.Size.X - (currentEntry.AddonPosition.X + currentEntry.AddonSize.X + 12f) - 20f;
+                float leftSpace = currentEntry.AddonPosition.X - 12f - 20f;
+                float bestAvailable = Math.Max(rightSpace, leftSpace) - paddingX;
+                if (bestAvailable > 260f)
+                {
+                    maxWrapWidth = Math.Min(maxWrapWidth, bestAvailable);
+                }
+            }
+            ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + maxWrapWidth);
 
             // 1. Preview mode (in config or manual command)
             if ((IsConfigOpen || IsManualPreview) && (!isActive || currentEntry == null))
             {
                 DrawPreview();
                 ImGui.PopTextWrapPos();
+                lastWindowWidth = ImGui.GetWindowSize().X;
                 return;
             }
 
@@ -214,6 +231,7 @@ public class SelectStringOverlayWindow : Window
             }
 
             ImGui.PopTextWrapPos();
+            lastWindowWidth = ImGui.GetWindowSize().X;
         }
         finally
         {
